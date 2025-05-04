@@ -7,5 +7,12 @@ create tablespace  SQL3_TBS datafile 'C:\tablespaces\tbs_002.dat' size 100M auto
 create temporary tablespace SQL3_TempTBS  tempfile 'C:\tablespaces\temp_002.dat' size 100M autoextend on;
 create user  SQL3 identified by sql3 default tablespace SQL3_TBS temporary tablespace SQL3_TempTBS;
 grant all privileges to SQL3;
-connect SQL3/sql3@orclpdb;
---creation de la table et insertion des données
+
+-- Schéma relationnel pour la gestion d’un réseau de transport urbain
+
+-- MoyenTransport(Abreviation(PK), HeureOuverture, HeureFermeture, NbMoyenVoyageurs)
+-- Station(CodeStation(PK), NomStation, Longitude, Latitude, TypeStation)
+-- Ligne(CodeLigne(PK), MoyenTransport(FK), StationDepart(FK), StationArrivee(FK))
+-- Troncon(NumeroTroncon(PK), StationDebut(FK), StationFin(FK), Longueur)
+-- Navette(NumeroNavette(PK), Marque, AnneeMiseEnCirculation)
+-- Voyage(NumeroVoyage(PK), NumeroNavette(FK), CodeLigne(FK), Duree, DateVoyage, HeureDebut, Sens, NbVoyageurs, Observation)
