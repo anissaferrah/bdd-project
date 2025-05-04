@@ -46,11 +46,6 @@ CREATE or REPLACE TYPE TNavette AS OBJECT (
     marque VARCHAR(50),
     anneeCirculation INTEGER
 );
-create type tobservation as object(observationtype varchar2(15));
-/
--- définir le type ensemble de observation table imbriquée
-create type t_set_observation table of tobservation;
-/
 CREATE TYPE TVoyage AS OBJECT (
     num_voyage VARCHAR(20),
     duree INTEGER,
@@ -58,7 +53,7 @@ CREATE TYPE TVoyage AS OBJECT (
     heureDebut TIME,
     sens VARCHAR(5),  -- 'Aller' ou 'Retour'
     nbVoyageurs INTEGER,
-    observation t_set_tobservation,   
+    observation VARCHAR(20),   
 );
 /* les associations:*/
 
@@ -67,7 +62,6 @@ CREATE TYPE T_Set_Ref_Station AS TABLE OF REF TStation;
 CREATE TYPE T_Set_Ref_Ligne AS TABLE OF REF TLigne;
 CREATE TYPE T_Set_Ref_Navette AS TABLE OF REF TNavette;
 CREATE TYPE T_Set_Ref_Voyage AS TABLE OF REF TVoyage;
-CREATE TYPE T_Set_Ref_Station AS TABLE OF REF TStation;
 CREATE TYPE T_Set_Ref_Troncon AS TABLE OF REF TTroncon;
 
 /* compléter les types */
