@@ -32,12 +32,14 @@ CREATE OR REPLACE TYPE TMoytransport AS OBJECT (
 CREATE OR REPLACE TYPE TLigne AS OBJECT (
     CodeLigne Varchar2(10)
 );
-/
+CREATE OR REPLACE TYPE TCoordonnees AS OBJECT (
+  Longitude FLOAT,
+  Latitude FLOAT
+);
 CREATE OR REPLACE TYPE TStation AS OBJECT (
     CodeStation Varchar2(10),
     NomStation Varchar2(100),
-    Longitude FLOAT,
-    Latitude FLOAT,
+    Coordonnees TCoordonnees,
     EstPrincipale NUMBER(1)
 );
 /
@@ -471,24 +473,24 @@ INSERT INTO TMoytransport VALUES ('TRN', TO_DATE('05:00', 'HH24:MI'), TO_DATE('2
 
 
 -- Insertion des stations
-INSERT INTO Station VALUES ('S001', 'Station A', 48.8566, 2.3522, 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN'))) ;
-INSERT INTO Station VALUES ('S002', 'Station B', 48.8570, 2.3530, 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'))) ;
-INSERT INTO Station VALUES ('S003', 'Station C', 48.8575, 2.3540, 0, Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM')));
-INSERT INTO Station VALUES ('S004', 'Station D', 48.8580, 2.3550, 1, Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S018', 'BEZ', 42.2557, 3.3550, 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S005', 'Station E', 48.8590, 2.3560, 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S006', 'Station F', 48.8600, 2.3570, 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM')));
-INSERT INTO Station VALUES ('S007', 'Station G', 48.8610, 2.3580, 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S008', 'Station H', 48.8620, 2.3590, 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS')));
-INSERT INTO Station VALUES ('S009', 'Station I', 48.8630, 2.3600, 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S010', 'Station J', 48.8640, 2.3610, 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S011', 'Station K', 48.8650, 2.3620, 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET')));
-INSERT INTO Station VALUES ('S012', 'Station L', 48.8660, 2.3630, 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S013', 'Station M', 48.8670, 2.3640, 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S014', 'Station N', 48.8680, 2.3650, 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS')));
-INSERT INTO Station VALUES ('S015', 'Station O', 48.8690, 2.3660, 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S016', 'Station P', 48.8700, 2.3670, 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S017', 'Station Q', 48.8710, 2.3680, 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET')));
+INSERT INTO Station VALUES ('S001', 'Station A',TCoordonnees(48.8566, 2.3522), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN'))) ;
+INSERT INTO Station VALUES ('S002', 'Station B',TCoordonnees(48.8570, 2.3530), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'))) ;
+INSERT INTO Station VALUES ('S003', 'Station C',TCoordonnees( 48.8575, 2.3540), 0, Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM')));
+INSERT INTO Station VALUES ('S004', 'Station D',TCoordonnees( 48.8580, 2.3550), 1, Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S018', 'BEZ',TCoordonnees(42.2557, 3.3550), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S005', 'Station E',TCoordonnees(48.8590, 2.3560), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S006', 'Station F',TCoordonnees(48.8600, 2.3570), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM')));
+INSERT INTO Station VALUES ('S007', 'Station G',TCoordonnees(48.8610, 2.3580), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S008', 'Station H',TCoordonnees(48.8620, 2.3590), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS')));
+INSERT INTO Station VALUES ('S009', 'Station I',TCoordonnees(48.8630, 2.3600), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S010', 'Station J',TCoordonnees(48.8640, 2.3610), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S011', 'Station K',TCoordonnees(48.8650, 2.3620), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET')));
+INSERT INTO Station VALUES ('S012', 'Station L',TCoordonnees(48.8660, 2.3630), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S013', 'Station M',TCoordonnees(48.8670, 2.3640), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S014', 'Station N',TCoordonnees(48.8680, 2.3650), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS')));
+INSERT INTO Station VALUES ('S015', 'Station O',TCoordonnees(48.8690, 2.3660), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S016', 'Station P',TCoordonnees(48.8700, 2.3670), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S017', 'Station Q',TCoordonnees(48.8710, 2.3680), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET')));
 
 --MISE A JOUR DE Moytransport_Station()
 -- 1) BUS
@@ -893,6 +895,14 @@ INSERT INTO Troncon VALUES (
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M004'),
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TM004')
 );
+INSERT INTO Troncon VALUES (
+  'T012',
+  12.0,
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S018'),
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B001'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TM004')
+);
 --AJOUTER INSETION FAUSSE POUR TESTER LA CONTRAINTE DE VERIFICATION
 INSERT INTO Troncon VALUES (
   'T013',
@@ -902,6 +912,7 @@ INSERT INTO Troncon VALUES (
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M004'),--STATION DE DE FIN NE CONTINENT PAS MOYENN DE TRANSPORT METRO
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TM004')--STATION DE DE DEBUT NE CONTINENT PAS MOYENN DE TRANSPORT TRM
 );
+
 --ajouter insertion dans Station_Troncons
 INSERT INTO TABLE(
   SELECT s.Station_Troncons 
@@ -1624,68 +1635,3 @@ GROUP BY
     s.CodeStation
 HAVING 
     COUNT(DISTINCT DEREF(m).Abreviation) >= 2;
-
-
--- ***********************************************
--- A- Modélisation orientée document
--- ***********************************************
-On suppose que la plupart des requêtes sur la base vont porter sur les voyages (voir exemples de 
-requêtes plus bas).
--- 1. Proposer une modélisation orientée document de la base de données décrite dans la partie I,
-{
-  "NumeroVoyage": "V0001",
-  "Duree": 30,
-  "DateVoyage": TO_DATE('01-01-2025', 'DD-MM-YYYY'),
-  "HeureDebut": TO_DATE('06:00', 'HH24:MI'),
-  "Sens": "Aller",
-  "NbVoyageurs": 40,
-  "Observation": "On time",
-  "navette": {
-    "NumeroNavette": "N001",
-    "Marque": "Mercedes",
-    "AnneeMiseEnCirculation": 2020,
-    "ligne": {
-    "codeLigne": "B001",
-    "stationDepart": {
-      "codeStation": "S001",
-      "nomStation": "Station A",
-      "longitude": 48.8566,
-      "latitude": 2.3522,
-      "estPrincipale": 1
-    }, 
-    "stationArrivee": {
-      "codeStation": "S004",
-      "nomStation": "Station D",
-      "longitude": 48.8580,
-      "latitude": 2.3550,
-      "estPrincipale": 1
-    },
-    "MoyenTransport": {
-      "abreviation": "BUS",
-      "heureOuverture": ISODate("..."),
-      "heureFermeture": ISODate("..."),
-      "nbMoyenVoyageurs": 50
-    }
-  }}
-  }
-
--- 2. Justification du choix de conception :
--- La modélisation orientée document est adaptée pour des cas où les données sont fortement imbriquées
--- et où les relations entre les entités sont souvent consultées ensemble. Ici, les voyages, navettes,
--- lignes, stations et moyens de transport sont étroitement liés. En regroupant ces informations dans
--- un seul document, on réduit les jointures nécessaires et on améliore les performances des requêtes.
-
--- 3. Inconvénients de la conception :
--- - La duplication des données (par exemple, les informations sur les stations ou les moyens de transport
---   peuvent être répétées dans plusieurs documents).
--- - La mise à jour des données partagées (comme les informations sur une station) peut être complexe
---   et nécessiter des opérations sur plusieurs documents.
--- - La taille des documents peut devenir importante, ce qui peut poser des problèmes de performance
---   pour certaines bases de données orientées document.
-
-- Proposer une modélisation orientée document de la base de données décrite dans la partie I, 
-dans ce cas.
-
-- Illustrez votre modélisation sur un exemple (ou plus) de la BD que vous avez générée
-- Justifiez votre choix de conception
-- Quelles sont les inconvénients de votre conception ?
