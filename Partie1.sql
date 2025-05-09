@@ -10,32 +10,38 @@
 -- Voyage(NumeroVoyage(PK), NumeroNavette(FK), CodeLigne(FK), Duree, DateVoyage, HeureDebut, Sens, NbVoyageurs, Observation)
 -- B. Création des TableSpaces et utilisateur
 -- 3. Création des TableSpaces
+ALTER PLUGGABLE DATABASE orclpdb OPEN;
+connect sys@orclpdb as sysdba
+
 CREATE TABLESPACE SQL3_TBS DATAFILE 'sql3_tbs.dbf' SIZE 50M AUTOEXTEND ON NEXT 10M MAXSIZE UNLIMITED;
 
 CREATE TEMPORARY TABLESPACE SQL3_TempTBS TEMPFILE 'sql3_temp_tbs.dbf' SIZE 20M AUTOEXTEND ON NEXT 5M MAXSIZE UNLIMITED;
 
 -- 4. Création de l'utilisateur
-CREATE USER SQL3 IDENTIFIED BY monmotdepasse DEFAULT TABLESPACE SQL3_TBS TEMPORARY TABLESPACE SQL3_TempTBS;
+CREATE USER SQL3 IDENTIFIED BY sql3 DEFAULT TABLESPACE SQL3_TBS TEMPORARY TABLESPACE SQL3_TempTBS;
 
 -- 5. Attribution des privilèges
 GRANT ALL PRIVILEGES TO SQL3;
 
+connect SQL3/sql3@orclpdb;
 -- C. Langage de définition de données
 -- 6. Définition des types abstraits et associations
 CREATE OR REPLACE TYPE TMoytransport AS OBJECT (
     Abreviation Varchar2(3),
-    HeureOuverture DATE,
-    HeureFermeture DATE,
+    HeureOuverture VARCHAR2(5),
+    HeureFermeture VARCHAR2(5),
     NbMoyenVoyageurs INTEGER
 );
 /
 CREATE OR REPLACE TYPE TLigne AS OBJECT (
     CodeLigne Varchar2(10)
 );
+/
 CREATE OR REPLACE TYPE TCoordonnees AS OBJECT (
   Longitude FLOAT,
   Latitude FLOAT
 );
+/
 CREATE OR REPLACE TYPE TStation AS OBJECT (
     CodeStation Varchar2(10),
     NomStation Varchar2(100),
@@ -51,15 +57,16 @@ CREATE OR REPLACE TYPE TTroncon AS OBJECT (
 CREATE OR REPLACE TYPE TNavette AS OBJECT (
     NumeroNavette Varchar2(20),
     Marque Varchar2(50),
-    AnneeMiseEnCirculation INTEGER
+    AnneeMiseEnCirculation NUMBER(4)
 );
 /
+
 CREATE OR REPLACE TYPE TVoyage AS OBJECT (
     NumeroVoyage Varchar2(20),
     Duree INTEGER,
     DateVoyage DATE,
-    HeureDebut DATE,
-    Sens Varchar2(5),  -- 'Aller' ou 'Retour'
+    HeureDebut VARCHAR2(5),
+    Sens Varchar2(6),  -- 'Aller' ou 'Retour'
     NbVoyageurs INTEGER,
     Observation Varchar2(20)
 );
@@ -85,27 +92,41 @@ ALTER TYPE TLigne ADD ATTRIBUTE Ligne_MoyenTransport REF TMoytransport CASCADE;
 ALTER TYPE TLigne ADD ATTRIBUTE Ligne_Troncon T_Set_Ref_Troncon CASCADE;
 ALTER TYPE TLigne ADD ATTRIBUTE Ligne_Navette T_Set_Ref_Navette CASCADE;
 
+DESC TLigne;       
+
 ALTER TYPE TStation ADD ATTRIBUTE Station_Ligne T_Set_Ref_Ligne CASCADE;
 ALTER TYPE TStation ADD ATTRIBUTE Station_Troncons T_Set_Ref_Troncon CASCADE;
 ALTER TYPE TStation ADD ATTRIBUTE Station_MoyenTransport T_Set_Ref_Moyen CASCADE;
 
+DESC TStation;
+
 ALTER TYPE TMoytransport ADD ATTRIBUTE Moytransport_Ligne T_Set_Ref_Ligne CASCADE;
 ALTER TYPE TMoytransport ADD ATTRIBUTE Moytransport_Station T_Set_Ref_Station CASCADE;
 ALTER TYPE TMoytransport ADD ATTRIBUTE Moytransport_Navette T_Set_Ref_Navette CASCADE;
+
+DESC TMoytransport;
 
 ALTER TYPE TTroncon ADD ATTRIBUTE Troncon_StationDebut REF TStation CASCADE;
 ALTER TYPE TTroncon ADD ATTRIBUTE Troncon_StationFin REF TStation CASCADE;
 ALTER TYPE TTroncon ADD ATTRIBUTE Troncon__Ligne1 REF TLigne CASCADE;
 ALTER TYPE TTroncon ADD ATTRIBUTE Troncon__Ligne2 REF TLigne CASCADE;
 
+DESC TTroncon;
+
 ALTER TYPE TNavette ADD ATTRIBUTE Navette_Ligne REF TLigne CASCADE;
 ALTER TYPE TNavette ADD ATTRIBUTE Navette_Moytransport REF TMoytransport CASCADE;
 ALTER TYPE TNavette ADD ATTRIBUTE Navette_Voyage T_Set_Ref_Voyage CASCADE;
 
+DESC TNavette;
+
 ALTER TYPE TVoyage ADD ATTRIBUTE Voyage_Navette REF TNavette CASCADE;
+
+DESC TVoyage;
 
 -- 7. Définition des méthodes
 -- Méthode pour calculer la durée d'un tronçon
+--vitesse de chaque moyen de transport:
+--BUS 20 km/h, MET 35 km/h, TRM 25 km/h, TRN 45 km/h
 ALTER TYPE TTroncon ADD MEMBER FUNCTION CalculerDuree(moyen REF TMoytransport) RETURN INTEGER CASCADE;
 
 CREATE OR REPLACE TYPE BODY TTroncon AS
@@ -128,18 +149,22 @@ CREATE OR REPLACE TYPE BODY TTroncon AS
       v_vitesse := 20;
     END IF;
 
-    v_duree := (SELF.LongueurKm / v_vitesse) * 60;
+    v_duree := (SELF.LongueurKm / v_vitesse) * 60; -- Durée en minutes
     RETURN ROUND(v_duree);
   END CalculerDuree;
 END;
 /
+-- Exemple d'utlisation de la mehode : Calculer la durée d'un tronçon=>correct
+SELECT t.NumeroTroncon, t.CalculerDuree(REF(m)) AS DureeMinutes
+FROM Troncon t, Moytransport m
+WHERE m.Abreviation = 'MET' AND t.NumeroTroncon = 'T001';
 
 
 --Méthode pour chaque navette, Calculer le nombre total de voyages effectués  
-ALTER TYPE TNavette ADD MEMBER FUNCTION CalculerNombreVoyages() RETURN INTEGER CASCADE;
+ALTER TYPE TNavette ADD MEMBER FUNCTION CalculerNombreVoyages RETURN INTEGER CASCADE;
 
 CREATE OR REPLACE TYPE BODY TNavette AS
-  MEMBER FUNCTION CalculerNombreVoyages() RETURN INTEGER IS
+  MEMBER FUNCTION CalculerNombreVoyages RETURN INTEGER IS
     v_nb INTEGER := 0;
   BEGIN
     SELECT COUNT(*)
@@ -150,98 +175,164 @@ CREATE OR REPLACE TYPE BODY TNavette AS
 END;
 /
 
-create or replace type tset_navette as table of tnavette;
--- Ajouter la méthode RetournerNavettes, la liste des navettes qui la desservent pour chaque ligne
-ALTER TYPE TLigne ADD MEMBER FUNCTION RetournerNavettes() RETURN TSet_Navette CASCADE;
-CREATE OR REPLACE TYPE BODY TLigne AS
-  MEMBER FUNCTION RetournerNavettes() RETURN TSet_Navette IS
-    liste_navette TSet_Navette;
-  BEGIN
-    SELECT CAST(MULTISET( select deref(VALUE(n)).Marque 
-    FROM TABLE(SELF.Ligne_Navette) n
-    WHERE DEREF(DEREF(n).Navette_Ligne).CodeLigne = SELF.CodeLigne) AS TSet_Navette) INTO liste_navette FROM dual;
+CREATE OR REPLACE TYPE T_Set_Navette AS TABLE OF TNavette;
+/
+ALTER TYPE TLigne ADD MEMBER FUNCTION ListeNavettes RETURN T_Set_Navette CASCADE;
 
-    RETURN liste_navette;
-  END RetournerNavettes;
+CREATE OR REPLACE TYPE BODY TLigne AS
+  MEMBER FUNCTION ListeNavettes 
+    RETURN T_Set_Navette IS 
+    result T_Set_Navette := T_Set_Navette(); 
+    v_nav TNavette;
+  BEGIN
+    FOR ref_nav IN (
+      SELECT COLUMN_VALUE AS refNav
+      FROM TABLE(SELF.Ligne_Navette)
+    ) LOOP
+      SELECT DEREF(ref_nav.refNav)
+      INTO v_nav
+      FROM DUAL;
+
+      result.EXTEND;
+      result(result.COUNT) := v_nav;
+    END LOOP;
+    RETURN result;
+  END ListeNavettes;
+END;
+/  
+-- Exemple d'utilisation de la méthode ListeNavettes
+SELECT * FROM TABLE(
+  SELECT Ligne.ListeNavettes()
+  FROM TABLE_LIGNES
+  WHERE Code = 'L1'
+);
+ALTER TYPE TLigne ADD MEMBER FUNCTION NombreVoyagesPeriode(p_start DATE, p_end DATE) RETURN INTEGER CASCADE;
+
+CREATE OR REPLACE TYPE BODY TLigne AS
+  MEMBER FUNCTION NombreVoyagesPeriode(p_start DATE, p_end DATE)
+    RETURN INTEGER IS
+    total INTEGER := 0;
+  BEGIN
+    FOR nav_row IN (
+      SELECT DEREF(COLUMN_VALUE) AS nav
+      FROM   TABLE(SELF.Ligne_Navette)
+    ) LOOP
+      FOR voy_row IN (
+        SELECT DEREF(COLUMN_VALUE) AS voy
+        FROM   TABLE(nav_row.nav.Navette_Voyage)
+      ) LOOP
+        IF voy_row.voy.DateVoyage BETWEEN p_start AND p_end THEN
+          total := total + 1;
+        END IF;
+      END LOOP;
+    END LOOP;
+    RETURN total;
+  END NombreVoyagesPeriode;
 END;
 /
 
--- Méthode pour calculer le nombre de voyages d'une ligne
- -- Calculer le nombre total de voyages pour toutes les navettes de la ligne
-ALTER TYPE TLigne ADD MEMBER FUNCTION NombreVoyagesLigne() RETURN INTEGER CASCADE;
+-- Exemple d'utilisation de la méthode NombreVoyagesPeriode
+--Tu demandes combien de voyages ont eu lieu entre le 1er janvier 2024 et le 31 décembre 2024 :
 
-CREATE OR REPLACE TYPE BODY TLigne AS
-  MEMBER FUNCTION NombreVoyagesLigne() RETURN INTEGER IS
-    v_nb INTEGER := 0;
-  BEGIN
-  FOR nav IN (SELECT * FROM TABLE(SELF.Ligne_Navette)) LOOP
-    SELECT COUNT(*) INTO v_nb FROM TABLE(nav.Navette_Voyage);
-    v_nb := v_nb + v_nb;
+SELECT Ligne.NombreVoyagesPeriode(DATE '2024-01-01', DATE '2024-12-31') AS NbVoyages
+FROM TABLE_LIGNES
+WHERE Code = 'L1';
+
+--Changer le nom de la station « BEZ » par « Univ » dans toutes les lignes/tronçons comportant cette station. 
+CREATE OR REPLACE PROCEDURE RenommerNomStationBEZEnUniv IS
+  v_station TStation;
+BEGIN
+  FOR ligne_rec IN (SELECT VALUE(l) AS ligne_obj FROM Ligne l) LOOP
+    IF ligne_rec.ligne_obj.Ligne_StationDepart IS NOT NULL THEN
+      SELECT DEREF(ligne_rec.ligne_obj.Ligne_StationDepart) INTO v_station FROM DUAL;
+      IF v_station.NomStation = 'BEZ' THEN
+        v_station.NomStation := 'Univ';
+      END IF;
+    END IF;
+    IF ligne_rec.ligne_obj.Ligne_StationArrivee IS NOT NULL THEN
+      SELECT DEREF(ligne_rec.ligne_obj.Ligne_StationArrivee) INTO v_station FROM DUAL;
+      IF v_station.NomStation = 'BEZ' THEN
+        v_station.NomStation := 'Univ';
+      END IF;
+    END IF;
   END LOOP;
-
-    RETURN v_nb;
-  END NombreVoyagesLigne;
+  FOR troncon_rec IN (SELECT VALUE(t) AS troncon_obj FROM Troncon t) LOOP
+    IF troncon_rec.troncon_obj.Troncon_StationDebut IS NOT NULL THEN
+      SELECT DEREF(troncon_rec.troncon_obj.Troncon_StationDebut) INTO v_station FROM DUAL;
+      IF v_station.NomStation = 'BEZ' THEN
+        v_station.NomStation := 'Univ';
+      END IF;
+    END IF;
+    IF troncon_rec.troncon_obj.Troncon_StationFin IS NOT NULL THEN
+      SELECT DEREF(troncon_rec.troncon_obj.Troncon_StationFin) INTO v_station FROM DUAL;
+      IF v_station.NomStation = 'BEZ' THEN
+        v_station.NomStation := 'Univ';
+      END IF;
+    END IF;
+  END LOOP;
+  DBMS_OUTPUT.PUT_LINE('Nom des stations BEZ mis à jour en Univ.');
 END;
 /
-
--- Méthode pour renommer une station et mettre à jour les lignes/tronçons associées
-ALTER TYPE TStation ADD MEMBER PROCEDURE RenommerStationEtMettreAJour(p_nouveauNom IN VARCHAR2) CASCADE;
-
-CREATE OR REPLACE TYPE BODY TStation AS
-  MEMBER PROCEDURE RenommerStationEtMettreAJour(p_nouveauNom IN VARCHAR2) IS
-  BEGIN
-    -- Update the station name
-    UPDATE Station
-    SET NomStation = p_nouveauNom
-    WHERE CodeStation = SELF.CodeStation;
-
-    -- Update lines where this station is the departure or arrival station
-    UPDATE Ligne
-    SET Ligne_StationDepart = REF(SELF)
-    WHERE DEREF(Ligne_StationDepart).CodeStation = SELF.CodeStation;
-
-    UPDATE Ligne
-    SET Ligne_StationArrivee = REF(SELF)
-    WHERE DEREF(Ligne_StationArrivee).CodeStation = SELF.CodeStation;
-
-    -- Update tronçons where this station is the start or end station
-    UPDATE Troncon
-    SET Troncon_StationDebut = REF(SELF)
-    WHERE DEREF(Troncon_StationDebut).CodeStation = SELF.CodeStation;
-
-    UPDATE Troncon
-    SET Troncon_StationFin = REF(SELF)
-    WHERE DEREF(Troncon_StationFin).CodeStation = SELF.CodeStation;
-
-    COMMIT;
-  EXCEPTION
-    WHEN OTHERS THEN
-      ROLLBACK;
-      RAISE;
-  END RenommerStationEtMettreAJour;
+-- Exemple d'utilisation de la procédure RenommerNomStationBEZEnUniv
+BEGIN
+  RenommerNomStationBEZEnUniv;
 END;
 /
 -- Méthode pour calculer pour un moyen de transport donné (Exemple Métro), 
 -- le nombre de voyages effectués à une date donnée (Exemple le 28-02-2025) 
 -- et le nombre de voyageurs total.
-
+-- 8.1. Méthode pour calculer le nombre de voyages et de voyageurs
 ALTER TYPE TMoytransport ADD MEMBER FUNCTION CalculerVoyagesEtVoyageurs(p_date DATE) RETURN VARCHAR2 CASCADE;
 
 CREATE OR REPLACE TYPE BODY TMoytransport AS
-  MEMBER FUNCTION CalculerVoyagesEtVoyageurs(p_date DATE) RETURN VARCHAR2 IS
-    v_nbVoyages INTEGER := 0;
-    v_nbVoyageurs INTEGER := 0;
+  MEMBER FUNCTION CalculerVoyagesEtVoyageurs(p_date DATE)
+    RETURN VARCHAR2 IS
+    v_nb_voyages INTEGER := 0;
+    v_nb_voyageurs INTEGER := 0;
+    v_navette TNavette;
+    v_voyage TVoyage;
   BEGIN
-    -- Calculer le nombre de voyages et le nombre total de voyageurs
-    SELECT COUNT(DEREF(value(v)).NumeroVoyage), NVL(SUM(DEREF(value(v)).NbVoyageurs), 0)
-    INTO   v_nbVoyages, v_nbVoyageurs
-    FROM   TABLE(SELF.Moytransport_Navette) n, TABLE(n.Navette_Voyage) v
-    WHERE  DEREF(value(v)).DateVoyage = p_date;
-
-    -- Retourner les résultats sous forme de chaîne
-    RETURN 'Nombre de voyages: ' || v_nbVoyages || ', Nombre total de voyageurs: ' || v_nbVoyageurs;
+    FOR ligne_row IN (
+      SELECT DEREF(COLUMN_VALUE) AS ligne
+      FROM TABLE(SELF.Moytransport_Ligne)
+    ) LOOP
+      FOR navette_row IN (
+        SELECT DEREF(COLUMN_VALUE) AS navette
+        FROM TABLE(ligne_row.ligne.Ligne_Navette)
+      ) LOOP
+        FOR voyage_row IN (
+          SELECT DEREF(COLUMN_VALUE) AS voyage
+          FROM TABLE(navette_row.navette.Navette_Voyage)
+        ) LOOP
+          IF voyage_row.voyage.DateVoyage = p_date THEN
+            v_nb_voyages := v_nb_voyages + 1;
+            v_nb_voyageurs := v_nb_voyageurs + voyage_row.voyage.NbVoyageurs;
+          END IF;
+        END LOOP;
+      END LOOP;
+    END LOOP;
+    RETURN 'Voyages: ' || v_nb_voyages || ', Nombre de voyageurs: ' || v_nb_voyageurs;
   END CalculerVoyagesEtVoyageurs;
 END;
+/
+
+-- 9. Définition des contraintes d'intégrité
+CREATE OR REPLACE TRIGGER verif_heures
+BEFORE INSERT OR UPDATE ON MoyenTransport
+FOR EACH ROW
+DECLARE
+    heure_ouverture DATE;
+    heure_fermeture DATE;
+BEGIN
+    -- Conversion des chaînes en heure (format HH24:MI)
+    heure_ouverture := TO_DATE(:NEW.HeureOuverture, 'HH24:MI');
+    heure_fermeture := TO_DATE(:NEW.HeureFermeture, 'HH24:MI');
+    
+    IF heure_ouverture >= heure_fermeture THEN
+        RAISE_APPLICATION_ERROR(-20001, 'HeureOuverture doit être inférieure à HeureFermeture');
+    END IF;
+END;
+/
 
 CREATE OR REPLACE TRIGGER trg_controle_moyen_transport_station
 BEFORE INSERT OR UPDATE ON Station
@@ -249,16 +340,13 @@ FOR EACH ROW
 DECLARE
     nb_moyens INTEGER;
 BEGIN
-    -- Apply the constraint only if the station is not principal
     IF :NEW.EstPrincipale = 0 THEN
-        -- Count the number of associated means of transport
         SELECT COUNT(*) INTO nb_moyens
-        FROM TABLE(:NEW.Station_MoyenTransport);
+        FROM TABLE(CAST(:NEW.Station_MoyenTransport AS T_Set_Ref_Moyen));
 
-        -- Raise an error if more than one means of transport is associated
         IF nb_moyens > 1 THEN
             RAISE_APPLICATION_ERROR(-20002, 
-                'Une station non principale ne peut être associée qu’à un seul moyen de transport.');
+                'Une station non principale ne peut etre associee qu a un seul moyen de transport.');
         END IF;
     END IF;
 END;
@@ -268,50 +356,44 @@ CREATE OR REPLACE TRIGGER trg_verif_transport_sur_ligne
 BEFORE INSERT OR UPDATE ON Ligne
 FOR EACH ROW
 DECLARE
-  cnt_depart  INTEGER;
-  cnt_arrivee INTEGER;
+  cnt_depart  INTEGER := 0;
+  cnt_arrivee INTEGER := 0;
 BEGIN
-  -- 1) Vérifier que la station de départ dessert le moyen choisi
-  SELECT COUNT(*) 
-    INTO cnt_depart
-    FROM TABLE(
-      (SELECT VALUE(s).Station_MoyenTransport
-         FROM Station s
-        WHERE REF(s) = :NEW.Ligne_StationDepart)
-    ) sm
-   WHERE sm = :NEW.Ligne_MoyenTransport;
-  
-  -- 2) Vérifier que la station d’arrivée dessert le même moyen
-  SELECT COUNT(*) 
-    INTO cnt_arrivee
-    FROM TABLE(
-      (SELECT VALUE(s).Station_MoyenTransport
-         FROM Station s
-        WHERE REF(s) = :NEW.Ligne_StationArrivee)
-    ) sm
-   WHERE sm = :NEW.Ligne_MoyenTransport;
-  
-  -- 3) Bloquer si l’une des deux vérifications échoue
+  -- Vérification de la station de départ
+  SELECT COUNT(*)
+  INTO cnt_depart
+  FROM Station s
+  WHERE REF(s) = :NEW.Ligne_StationDepart
+    AND :NEW.Ligne_MoyenTransport MEMBER OF s.Station_MoyenTransport;
+
+  -- Vérification de la station d’arrivée
+  SELECT COUNT(*)
+  INTO cnt_arrivee
+  FROM Station s
+  WHERE REF(s) = :NEW.Ligne_StationArrivee
+    AND :NEW.Ligne_MoyenTransport MEMBER OF s.Station_MoyenTransport;
+
+  -- Si l’une des vérifications échoue, lever une erreur
   IF cnt_depart = 0 THEN
     RAISE_APPLICATION_ERROR(
-      -20010,
+      -20002,
       'Erreur : la station de départ ne dessert pas ce moyen de transport.'
     );
   ELSIF cnt_arrivee = 0 THEN
     RAISE_APPLICATION_ERROR(
-      -20011,
-      'Erreur : la station d’arrivée ne dessert pas ce moyen de transport.'
+      -20003,
+      'Erreur : la station d''arrivée ne dessert pas ce moyen de transport.'
     );
   END IF;
 END;
 /
---verfication trg_verif_troncon que le tronçon est valide 
+
 CREATE OR REPLACE TRIGGER trg_verif_troncon
 BEFORE INSERT OR UPDATE ON Troncon
 FOR EACH ROW
 DECLARE
-  moyen1 REF TMoytransport;
-  moyen2 REF TMoytransport;
+  moyen1 REF TMOYTRANSPORT;
+  moyen2 REF TMOYTRANSPORT;
   cnt1_deb INTEGER := 0;
   cnt1_fin INTEGER := 0;
   cnt2_deb INTEGER := 0;
@@ -319,76 +401,89 @@ DECLARE
 BEGIN
   -- 1) Stations différentes
   IF :NEW.Troncon_StationDebut = :NEW.Troncon_StationFin THEN
-    RAISE_APPLICATION_ERROR(-20020, 'Un tronçon doit relier deux stations différentes.');
+    RAISE_APPLICATION_ERROR(-20002, 'Un tronçon doit relier deux stations différentes.');
   END IF;
 
   -- 2) Longueur positive
   IF :NEW.LongueurKm <= 0 THEN
-    RAISE_APPLICATION_ERROR(-20021, 'La longueur doit être strictement positive.');
+    RAISE_APPLICATION_ERROR(-20003, 'La longueur doit être strictement positive.');
   END IF;
 
   -- 3) Au moins une ligne
   IF :NEW.Troncon__Ligne1 IS NULL AND :NEW.Troncon__Ligne2 IS NULL THEN
-    RAISE_APPLICATION_ERROR(-20022, 'Le tronçon doit appartenir à au moins une ligne.');
+    RAISE_APPLICATION_ERROR(-20004, 'Le tronçon doit appartenir à au moins une ligne.');
   END IF;
 
   -- 4) Pas deux fois la même ligne
   IF :NEW.Troncon__Ligne1 IS NOT NULL AND :NEW.Troncon__Ligne2 IS NOT NULL AND
      :NEW.Troncon__Ligne1 = :NEW.Troncon__Ligne2 THEN
-    RAISE_APPLICATION_ERROR(-20023, 'Le tronçon ne peut pas être lié deux fois à la même ligne.');
+    RAISE_APPLICATION_ERROR(-20005, 'Le tronçon ne peut pas être lié deux fois à la même ligne.');
   END IF;
 
   -- 5) Vérification pour la ligne 1
   IF :NEW.Troncon__Ligne1 IS NOT NULL THEN
-    -- Récupérer le moyen de transport de la ligne 1
-    SELECT VALUE(l).Ligne_MoyenTransport INTO moyen1
-    FROM Ligne l WHERE REF(l) = :NEW.Troncon__Ligne1;
+    SELECT l.Ligne_MoyenTransport INTO moyen1
+    FROM Ligne l
+    WHERE REF(l) = :NEW.Troncon__Ligne1;
 
-    -- Vérifier station de début
     SELECT COUNT(*) INTO cnt1_deb
-    FROM TABLE((SELECT VALUE(s).Station_MoyenTransport
-                FROM Station s WHERE REF(s) = :NEW.Troncon_StationDebut))
-    WHERE VALUE(moyen1) = VALUE(COLUMN_VALUE);
+    FROM Station s
+    WHERE REF(s) = :NEW.Troncon_StationDebut
+      AND moyen1 MEMBER OF s.Station_MoyenTransport;
 
-    -- Vérifier station de fin
     SELECT COUNT(*) INTO cnt1_fin
-    FROM TABLE((SELECT VALUE(s).Station_MoyenTransport
-                FROM Station s WHERE REF(s) = :NEW.Troncon_StationFin))
-    WHERE VALUE(moyen1) = VALUE(COLUMN_VALUE);
+    FROM Station s
+    WHERE REF(s) = :NEW.Troncon_StationFin
+      AND moyen1 MEMBER OF s.Station_MoyenTransport;
 
     IF cnt1_deb = 0 THEN
-      RAISE_APPLICATION_ERROR(-20024, 'La station de début ne dessert pas le moyen de transport de la ligne 1.');
+      RAISE_APPLICATION_ERROR(-20006, 'La station de début ne dessert pas le moyen de transport de la ligne 1.');
     ELSIF cnt1_fin = 0 THEN
-      RAISE_APPLICATION_ERROR(-20025, 'La station de fin ne dessert pas le moyen de transport de la ligne 1.');
+      RAISE_APPLICATION_ERROR(-20007, 'La station de fin ne dessert pas le moyen de transport de la ligne 1.');
     END IF;
   END IF;
 
   -- 6) Vérification pour la ligne 2
   IF :NEW.Troncon__Ligne2 IS NOT NULL THEN
-    -- Récupérer le moyen de transport de la ligne 2
-    SELECT VALUE(l).Ligne_MoyenTransport INTO moyen2
-    FROM Ligne l WHERE REF(l) = :NEW.Troncon__Ligne2;
+    SELECT l.Ligne_MoyenTransport INTO moyen2
+    FROM Ligne l
+    WHERE REF(l) = :NEW.Troncon__Ligne2;
 
-    -- Vérifier station de début
     SELECT COUNT(*) INTO cnt2_deb
-    FROM TABLE((SELECT VALUE(s).Station_MoyenTransport
-                FROM Station s WHERE REF(s) = :NEW.Troncon_StationDebut))
-    WHERE VALUE(moyen2) = VALUE(COLUMN_VALUE);
+    FROM Station s
+    WHERE REF(s) = :NEW.Troncon_StationDebut
+      AND moyen2 MEMBER OF s.Station_MoyenTransport;
 
-    -- Vérifier station de fin
     SELECT COUNT(*) INTO cnt2_fin
-    FROM TABLE((SELECT VALUE(s).Station_MoyenTransport
-                FROM Station s WHERE REF(s) = :NEW.Troncon_StationFin))
-    WHERE VALUE(moyen2) = VALUE(COLUMN_VALUE);
+    FROM Station s
+    WHERE REF(s) = :NEW.Troncon_StationFin
+      AND moyen2 MEMBER OF s.Station_MoyenTransport;
 
     IF cnt2_deb = 0 THEN
-      RAISE_APPLICATION_ERROR(-20026, 'La station de début ne dessert pas le moyen de transport de la ligne 2.');
+      RAISE_APPLICATION_ERROR(-20008, 'La station de début ne dessert pas le moyen de transport de la ligne 2.');
     ELSIF cnt2_fin = 0 THEN
-      RAISE_APPLICATION_ERROR(-20027, 'La station de fin ne dessert pas le moyen de transport de la ligne 2.');
+      RAISE_APPLICATION_ERROR(-20009, 'La station de fin ne dessert pas le moyen de transport de la ligne 2.');
+    END IF;
+  END IF;
+  -- 7) Vérification que les deux lignes (si présentes) utilisent le même moyen de transport
+  IF :NEW.Troncon__Ligne1 IS NOT NULL AND :NEW.Troncon__Ligne2 IS NOT NULL THEN
+    IF moyen1 != moyen2 THEN
+      RAISE_APPLICATION_ERROR(-20010, 'Les deux lignes doivent utiliser le même moyen de transport.');
     END IF;
   END IF;
 END;
 /
+
+
+
+--donner resumer ce trigger ce que fait le trigger  trg_verif_troncon est de verifier
+-- que le tronçon est valide avant de l'insérer ou de le mettre à jour dans la table Troncon.
+-- Il effectue plusieurs vérifications :
+-- 1) Il s'assure que les stations de début et de fin sont différentes.
+-- 2) Il vérifie que la longueur du tronçon est strictement positive.
+-- 3) Il s'assure qu'au moins une ligne est associée au tronçon.
+-- 4) Il vérifie qu'une même ligne n'est pas associée deux fois au tronçon.
+--5) Il vérifie que chaque ligne associée au tronçon a son moyen de transport dans les deux stations.
 
 CREATE OR REPLACE TRIGGER trg_verif_navette
 BEFORE INSERT OR UPDATE ON Navette
@@ -403,194 +498,188 @@ BEGIN
   WHERE REF(l) = :NEW.Navette_Ligne;
 
   -- Vérifier que le moyen de transport de la navette correspond à celui de la ligne
-  IF v_moyen_ligne != :NEW.Navette_MoyenTransport THEN
-    RAISE_APPLICATION_ERROR(-20030, 
+  IF v_moyen_ligne != :NEW.Navette_Moytransport THEN
+    RAISE_APPLICATION_ERROR(-20002, 
       'Incohérence : Le moyen de transport de la navette ne correspond pas à celui de la ligne.');
   END IF;
 END;
 /
-
---donner resumer ce trigger ce que fait le trigger  trg_verif_troncon est de verifier
--- que le tronçon est valide avant de l'insérer ou de le mettre à jour dans la table Troncon.
--- Il effectue plusieurs vérifications :
--- 1) Il s'assure que les stations de début et de fin sont différentes.
--- 2) Il vérifie que la longueur du tronçon est strictement positive.
--- 3) Il s'assure qu'au moins une ligne est associée au tronçon.
--- 4) Il vérifie qu'une même ligne n'est pas associée deux fois au tronçon.
---5) Il vérifie que chaque ligne associée au tronçon a son moyen de transport dans les deux stations.
-
--- 8. Définition des tables
-CREATE TABLE TMoytransport OF TMoytransport (
+-- 8. Définition des tables----------------------------------------------------------------------------------------------------------------
+CREATE TABLE Moytransport OF TMoytransport (
     Abreviation PRIMARY KEY,
+    HeureOuverture VARCHAR2(5) NOT NULL,
+    HeureFermeture VARCHAR2(5) NOT NULL,
     CONSTRAINT chk_abreviation CHECK (Abreviation IN ('BUS', 'MET', 'TRM', 'TRN')),
-    CONSTRAINT chk_heure_ouverture_fermeture CHECK (HeureOuverture < HeureFermeture)
-) NESTED TABLE Moytransport_Ligne STORE AS table_Moytransport_Ligne,
+    CONSTRAINT chk_NbMoyenVoyageurs NbMoyenVoyageurs INTEGER CHECK (NbMoyenVoyageurs >= 0)
+)   NESTED TABLE Moytransport_Ligne STORE AS table_Moytransport_Ligne,
     NESTED TABLE Moytransport_Station STORE AS table_Moytransport_Station,
     NESTED TABLE Moytransport_Navette STORE AS table_Moytransport_Navette;
 
 CREATE TABLE Station OF TStation (
-    CodeStation PRIMARY KEY
+    CodeStation PRIMARY KEY,
+    CONSTRAINT chk_EstPrincipale NUMBER(1) CHECK (EstPrincipale IN (0,1))
 ) NESTED TABLE Station_Ligne STORE AS table_Station_Ligne,
   NESTED TABLE Station_Troncons STORE AS table_Station_Troncons,
   NESTED TABLE Station_MoyenTransport STORE AS table_Station_MoyenTransport;
 
 CREATE TABLE Ligne OF TLigne (
     CodeLigne PRIMARY KEY,
-    FOREIGN KEY (Ligne_StationDepart) REFERENCES Station(CodeStation) NOT NULL,
-    FOREIGN KEY (Ligne_StationArrivee) REFERENCES Station(CodeStation) NOT NULL,
-    FOREIGN KEY (Ligne_MoyenTransport) REFERENCES TMoytransport(Abreviation),
+    FOREIGN KEY (Ligne_StationDepart) REFERENCES Station, 
+    FOREIGN KEY (Ligne_StationArrivee) REFERENCES Station,
+    FOREIGN KEY (Ligne_MoyenTransport) REFERENCES Moytransport,
     CONSTRAINT chk_station_depart_arrivee CHECK (Ligne_StationDepart != Ligne_StationArrivee)
 ) NESTED TABLE Ligne_Troncon STORE AS table_Ligne_Troncon,
   NESTED TABLE Ligne_Navette STORE AS table_Ligne_Navette;
 
 CREATE TABLE Troncon OF TTroncon (
   NumeroTroncon PRIMARY KEY,
-  FOREIGN KEY (Troncon_StationDebut) REFERENCES Station(CodeStation) NOT NULL,
-  FOREIGN KEY (Troncon_StationFin) REFERENCES Station(CodeStation) NOT NULL,
-  FOREIGN KEY (Troncon__Ligne1) REFERENCES Ligne(CodeLigne),
-  FOREIGN KEY (Troncon__Ligne2) REFERENCES Ligne(CodeLigne),
+  FOREIGN KEY (Troncon_StationDebut) REFERENCES Station,
+  FOREIGN KEY (Troncon_StationFin) REFERENCES Station,
+  FOREIGN KEY (Troncon__Ligne1) REFERENCES Ligne,
+  FOREIGN KEY (Troncon__Ligne2) REFERENCES Ligne,
   CONSTRAINT chk_station_debut_fin CHECK (Troncon_StationDebut != Troncon_StationFin),
   CONSTRAINT chk_troncon_ligne1_ligne2 CHECK (Troncon__Ligne1 != Troncon__Ligne2)
 );
 
 CREATE TABLE Navette OF TNavette (
     NumeroNavette PRIMARY KEY,
-    FOREIGN KEY (Navette_Ligne) REFERENCES Ligne(CodeLigne),
-    FOREIGN KEY (Navette_Moytransport) REFERENCES TMoytransport(Abreviation)
+    FOREIGN KEY (Navette_Ligne) REFERENCES Ligne,
+    FOREIGN KEY (Navette_Moytransport) REFERENCES Moytransport
 ) NESTED TABLE Navette_Voyage STORE AS table_Navette_Voyage;
 
 CREATE TABLE Voyage OF TVoyage (
     NumeroVoyage PRIMARY KEY,
-    FOREIGN KEY (Voyage_Navette) REFERENCES Navette(NumeroNavette),
-    CONSTRAINT chk_sens CHECK (Sens IN ('Aller', 'Retour')),
+    FOREIGN KEY (Voyage_Navette) REFERENCES Navette,
+    CONSTRAINT chk_sens CHECK (Sens IN ('Aller', 'Rtour')),
     CONSTRAINT chk_nbvoyageurs CHECK (NbVoyageurs >= 0)
 );
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 -- Insertion des moyens de transport
-INSERT INTO TMoytransport VALUES ('BUS', TO_DATE('06:00', 'HH24:MI'), TO_DATE('22:00', 'HH24:MI'), 200,Moytransport_Ligne(),Moytransport_Station(),Moytransport_Navette());
-INSERT INTO TMoytransport VALUES ('MET', TO_DATE('05:30', 'HH24:MI'), TO_DATE('23:30', 'HH24:MI'),300, Moytransport_Ligne(),Moytransport_Station(),Moytransport_Navette());
-INSERT INTO TMoytransport VALUES ('TRM', TO_DATE('06:00', 'HH24:MI'), TO_DATE('23:00', 'HH24:MI'), 500, Moytransport_Ligne(),Moytransport_Station(),Moytransport_Navette());
-INSERT INTO TMoytransport VALUES ('TRN', TO_DATE('05:00', 'HH24:MI'), TO_DATE('23:59', 'HH24:MI'), 400, Moytransport_Ligne(),Moytransport_Station(),Moytransport_Navette());
+--si NbMoyenVoyageurs<0
+INSERT INTO Moytransport VALUES ('TRN','05:00','23:59',   0, T_Set_Ref_Ligne(), T_Set_Ref_Station(), T_Set_Ref_Navette());
+--si HeureOuverture>=HeureFermeture
+INSERT INTO Moytransport VALUES ('BUS','22:00','05:00', 200, T_Set_Ref_Ligne(), T_Set_Ref_Station(), T_Set_Ref_Navette());
+
+--------------------------------------------------insertion dans la table Moytransport:--------------------------------------------------------------------
+INSERT INTO Moytransport VALUES ('MET','05:30','23:30', 300, T_Set_Ref_Ligne(), T_Set_Ref_Station(), T_Set_Ref_Navette());
+INSERT INTO Moytransport VALUES ('TRM','06:00','23:00', 500, T_Set_Ref_Ligne(), T_Set_Ref_Station(), T_Set_Ref_Navette());
+INSERT INTO Moytransport VALUES ('TRN','05:00','23:59', 400, T_Set_Ref_Ligne(), T_Set_Ref_Station(), T_Set_Ref_Navette());
+INSERT INTO Moytransport VALUES ('TRN','05:00','23:59', 480, T_Set_Ref_Ligne(), T_Set_Ref_Station(), T_Set_Ref_Navette());
+
+--si principle =1 alors il faut au moins 2 moyens de transport
+--Verification de la contrainte d'integrite de la table station si EstPrincipale=1
+INSERT INTO Station VALUES ('S000', 'Station A',TCoordonnees(38.8566, 2.3522), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS'))) ;
 
 
--- Insertion des stations
-INSERT INTO Station VALUES ('S001', 'Station A',TCoordonnees(48.8566, 2.3522), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN'))) ;
-INSERT INTO Station VALUES ('S002', 'Station B',TCoordonnees(48.8570, 2.3530), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'))) ;
-INSERT INTO Station VALUES ('S003', 'Station C',TCoordonnees( 48.8575, 2.3540), 0, Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM')));
-INSERT INTO Station VALUES ('S004', 'Station D',TCoordonnees( 48.8580, 2.3550), 1, Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S018', 'BEZ',TCoordonnees(42.2557, 3.3550), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S005', 'Station E',TCoordonnees(48.8590, 2.3560), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S006', 'Station F',TCoordonnees(48.8600, 2.3570), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM')));
-INSERT INTO Station VALUES ('S007', 'Station G',TCoordonnees(48.8610, 2.3580), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S008', 'Station H',TCoordonnees(48.8620, 2.3590), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS')));
-INSERT INTO Station VALUES ('S009', 'Station I',TCoordonnees(48.8630, 2.3600), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S010', 'Station J',TCoordonnees(48.8640, 2.3610), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S011', 'Station K',TCoordonnees(48.8650, 2.3620), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET')));
-INSERT INTO Station VALUES ('S012', 'Station L',TCoordonnees(48.8660, 2.3630), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S013', 'Station M',TCoordonnees(48.8670, 2.3640), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S014', 'Station N',TCoordonnees(48.8680, 2.3650), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS')));
-INSERT INTO Station VALUES ('S015', 'Station O',TCoordonnees(48.8690, 2.3660), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S016', 'Station P',TCoordonnees(48.8700, 2.3670), 1,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='TRN')));
-INSERT INTO Station VALUES ('S017', 'Station Q',TCoordonnees(48.8710, 2.3680), 0,Station_Ligne(),station_Troncons(),Station_MoyenTransport((SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation='MET')));
+-- --------------------------------------------------Insertion dans la table station:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+INSERT INTO Station VALUES ('S001', 'Station A',TCoordonnees(38.8566, 2.3522), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN'))) ;
+INSERT INTO Station VALUES ('S002', 'Station B',TCoordonnees(58.8570, 2.3530), 0,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET')));
+INSERT INTO Station VALUES ('S003', 'Station C',TCoordonnees(48.8575, 7.3540), 0, T_Set_Ref_Ligne(), T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM')));
+INSERT INTO Station VALUES ('S004', 'Station D',TCoordonnees(78.8580, 2.3550), 1, T_Set_Ref_Ligne(), T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S005', 'Station E',TCoordonnees(88.8590, 2.3560), 0,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S006', 'Station F',TCoordonnees(48.8600, 3.3570), 0,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM')));
+INSERT INTO Station VALUES ('S007', 'Station G',TCoordonnees(48.8610, 2.3580), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S008', 'Station H',TCoordonnees(38.8620, 2.3590), 0,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS')));
+INSERT INTO Station VALUES ('S009', 'Station I',TCoordonnees(48.8630, 2.3600), 0,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S010', 'Station J',TCoordonnees(48.8640, 5.3610), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S011', 'Station K',TCoordonnees(58.8650, 2.3620), 0,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET')));
+INSERT INTO Station VALUES ('S012', 'Station L',TCoordonnees(48.8660, 2.3630), 0,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S013', 'Station M',TCoordonnees(48.8670, 2.3640), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S014', 'Station N',TCoordonnees(48.8680, 8.3650), 0,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS')));
+INSERT INTO Station VALUES ('S015', 'Station O',TCoordonnees(48.8690, 2.3660), 0,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S016', 'Station P',TCoordonnees(48.8700, 9.3670), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S017', 'Station Q',TCoordonnees(48.8710, 2.3680), 0,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET')));
+INSERT INTO Station VALUES ('S018', 'BEZ',TCoordonnees(42.2557, 3.3550), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN')));
 
---MISE A JOUR DE Moytransport_Station()
+INSERT INTO Station VALUES ('S019', 'Station R',TCoordonnees(78.8720, 2.3690), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS')));
+INSERT INTO Station VALUES ('S020', 'Station S',TCoordonnees(48.8730, 3.3700), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN')));
+INSERT INTO Station VALUES ('S021', 'Station T',TCoordonnees(48.8740, 4.3710), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM')));
+INSERT INTO Station VALUES ('S022', 'Station U',TCoordonnees(48.8750, 5.3720), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='BUS'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM')));
+INSERT INTO Station VALUES ('S023', 'Station V',TCoordonnees(48.8760, 6.3730), 1,T_Set_Ref_Ligne(),T_Set_Ref_Troncon(),T_Set_Ref_Moyen((SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRM'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='TRN'),(SELECT REF(m) FROM Moytransport m WHERE m.Abreviation='MET')));
+
+--mise à jour de la table Moytransport_Station
+---------------------------------------------------------------------------------------------------------------------------------------------------------
 -- 1) BUS
-INSERT INTO TABLE(
-  SELECT mt.Moytransport_Station 
-    FROM TMoytransport mt 
-   WHERE mt.Abreviation = 'BUS'
+INSERT INTO TABLE (
+  SELECT mt.Moytransport_Station
+  FROM Moytransport mt
+  WHERE mt.Abreviation = 'BUS'
 )
 SELECT REF(s)
-  FROM Station s
- WHERE EXISTS (
-   SELECT 1 FROM TABLE(s.Station_MoyenTransport) sm
-    WHERE DEREF(sm).Abreviation = 'BUS'
- );
+  FROM Station s,TABLE(s.Station_MoyenTransport) t
+  WHERE DEREF(value(t)).Abreviation = 'BUS';
+
 
 -- 2) MET
-INSERT INTO TABLE(
-  SELECT mt.Moytransport_Station 
-    FROM TMoytransport mt 
-   WHERE mt.Abreviation = 'MET'
+INSERT INTO TABLE (
+  SELECT mt.Moytransport_Station
+  FROM Moytransport mt
+  WHERE mt.Abreviation = 'MET'
 )
 SELECT REF(s)
-  FROM Station s
- WHERE EXISTS (
-   SELECT 1 FROM TABLE(s.Station_MoyenTransport) sm
-    WHERE DEREF(sm).Abreviation = 'MET'
- );
+  FROM Station s,TABLE(s.Station_MoyenTransport) t
+  WHERE DEREF(value(t)).Abreviation = 'MET';
 
 -- 3) TRM
-INSERT INTO TABLE(
-  SELECT mt.Moytransport_Station 
-    FROM TMoytransport mt 
-   WHERE mt.Abreviation = 'TRM'
+INSERT INTO TABLE (
+  SELECT mt.Moytransport_Station
+  FROM Moytransport mt
+  WHERE mt.Abreviation = 'TRM'
 )
 SELECT REF(s)
-  FROM Station s
- WHERE EXISTS (
-   SELECT 1 FROM TABLE(s.Station_MoyenTransport) sm
-    WHERE DEREF(sm).Abreviation = 'TRM'
- );
+  FROM Station s,TABLE(s.Station_MoyenTransport) t
+  WHERE DEREF(value(t)).Abreviation = 'TRM';
+
 
 -- 4) TRN
-INSERT INTO TABLE(
-  SELECT mt.Moytransport_Station 
-    FROM TMoytransport mt 
-   WHERE mt.Abreviation = 'TRN'
+INSERT INTO TABLE (
+  SELECT mt.Moytransport_Station
+  FROM Moytransport mt
+  WHERE mt.Abreviation = 'TRN'
 )
 SELECT REF(s)
-  FROM Station s
- WHERE EXISTS (
-   SELECT 1 FROM TABLE(s.Station_MoyenTransport) sm
-    WHERE DEREF(sm).Abreviation = 'TRN'
- );
-
+  FROM Station s,TABLE(s.Station_MoyenTransport) t
+  WHERE DEREF(value(t)).Abreviation = 'TRN';
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 -- Insertion des lignes
-INSERT INTO Ligne VALUES ('B001', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S001'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'BUS'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('M001', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S001'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'MET'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('TM001', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S003'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S006'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRM'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('TN001', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S005'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S009'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRN'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('B002', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S010'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'BUS'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('M002', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S010'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'MET'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('TM002', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S010'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRM'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('TN002', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S005'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S010'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRN'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('B003', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S013'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'BUS'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('M003', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S013'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'MET'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('TM003', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S013'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRM'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('TN003', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S013'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRN'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('B004', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'BEZ'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'BUS'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('M004', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'BEZ'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'MET'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('TM004', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'BEZ'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRM'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('TN004', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'BEZ'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRN'), Ligne_Troncon(), Ligne_Navette());
-INSERT INTO Ligne VALUES ('B005', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S008'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'BUS'), Ligne_Troncon(), Ligne_Navette());
+INSERT INTO Ligne VALUES ('B001', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S001'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'BUS'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('M001', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S001'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'MET'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TM001', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S003'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S006'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRM'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TN001', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S005'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S009'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('B002', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S010'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'BUS'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('M002', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S010'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'MET'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TM002', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S010'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRM'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TN002', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S005'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S010'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('B003', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S013'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'BUS'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('M003', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S013'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'MET'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TM003', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S013'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRM'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TN003', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S013'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('B004', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S018'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'BUS'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('M004', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S018'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'MET'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TM004', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S018'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRM'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TN004', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S018'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('B005', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S008'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'BUS'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TN005', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S019'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S015'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('B006', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S019'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S014'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'BUS'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TM005', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S020'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S021'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRM'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('M005', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S021'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S023'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'MET'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TM006', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S022'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S023'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRM'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('TN006', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S022'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S019'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+INSERT INTO Ligne VALUES ('M006', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S022'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'MET'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
+
+
 -- This line is intentionally incorrect to trigger the verification constraint
-INSERT INTO Ligne VALUES ('TN002', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S008'), (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRN'), Ligne_Troncon(), Ligne_Navette());
+--verfier si la station de depart et d'arrivee dessert le moyen de transport choisi
+INSERT INTO Ligne VALUES ('TN002', (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'), (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S008'), (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'), T_Set_Ref_Troncon(), T_Set_Ref_Navette());
 
---donner ici tous les lignes et leurs informations
--- 1) Ligne B001 => station départ S001, station arrivée S004, moyen de transport BUS
--- 2) Ligne M001 => station départ S001, station arrivée S004, moyen de transport MET
--- 3) Ligne TM001 => station départ S003, station arrivée S006, moyen de transport TRM
--- 4) Ligne TN001 => station départ S005, station arrivée S009, moyen de transport TRN
--- 5) Ligne B002 => station départ S007, station arrivée S010, moyen de transport BUS
--- 6) Ligne M002 => station départ S007, station arrivée S010, moyen de transport MET
--- 7) Ligne TM002 => station départ S007, station arrivée S010, moyen de transport TRM
--- 8) Ligne TN002 => station départ S005, station arrivée S010, moyen de transport TRN
--- 9) Ligne B003 => station départ S013, station arrivée S016, moyen de transport BUS
--- 10) Ligne M003 => station départ S013, station arrivée S016, moyen de transport MET
--- 11) Ligne TM003 => station départ S013, station arrivée S016, moyen de transport TRM
--- 12) Ligne TN003 => station départ S013, station arrivée S016, moyen de transport TRN
--- 13) Ligne B004 => station départ S018, station arrivée S004, moyen de transport BUS
--- 14) Ligne M004 => station départ S018, station arrivée S004, moyen de transport MET
--- 15) Ligne TM004 => station départ S018, station arrivée S004, moyen de transport TRM
--- 16) Ligne TN004 => station départ S018, station arrivée S004, moyen de transport TRN
--- 17) Ligne B005 => station départ S007, station arrivée S008, moyen de transport BUS
 
--- mise a jour de Moytransport_Ligne apres insertion de lignes
+
+------------------------------------ mise a jour de Moytransport_Ligne apres insertion de lignes-------------------------------------------
 -- 1) BUS
 INSERT INTO TABLE(
   SELECT mt.Moytransport_Ligne 
-    FROM TMoytransport mt 
+    FROM Moytransport mt 
    WHERE mt.Abreviation = 'BUS'
 )
 SELECT REF(l)
@@ -600,7 +689,7 @@ SELECT REF(l)
 -- 2) MET
 INSERT INTO TABLE(
   SELECT mt.Moytransport_Ligne 
-    FROM TMoytransport mt 
+    FROM Moytransport mt 
    WHERE mt.Abreviation = 'MET'
 )
 SELECT REF(l)
@@ -610,7 +699,7 @@ SELECT REF(l)
 -- 3) TRM
 INSERT INTO TABLE(
   SELECT mt.Moytransport_Ligne 
-    FROM TMoytransport mt 
+    FROM Moytransport mt 
    WHERE mt.Abreviation = 'TRM'
 )
 SELECT REF(l)
@@ -620,7 +709,7 @@ SELECT REF(l)
 -- 4) TRN
 INSERT INTO TABLE(
   SELECT mt.Moytransport_Ligne 
-    FROM TMoytransport mt 
+    FROM Moytransport mt 
    WHERE mt.Abreviation = 'TRN'
 )
 SELECT REF(l)
@@ -628,7 +717,7 @@ SELECT REF(l)
  WHERE DEREF(l.Ligne_MoyenTransport).Abreviation = 'TRN';
 
 
---mise a jour de station_Ligne  apres insertion de lignes
+----------------------------------------mise a jour de station_Ligne  apres insertion de lignes---------------------------------------
 -- 1) Station A
 INSERT INTO TABLE(
   SELECT s.Station_Ligne 
@@ -792,9 +881,64 @@ INSERT INTO TABLE(
 (SELECT REF(l)
   FROM Ligne l
  WHERE DEREF(l.Ligne_StationDepart).CodeStation = 'S018' OR DEREF(l.Ligne_StationArrivee).CodeStation = 'S018');
+-- 19) Station R
+INSERT INTO TABLE(
+  SELECT s.Station_Ligne 
+    FROM Station s 
+   WHERE s.CodeStation = 'S019'
+)
+(SELECT REF(l)
+  FROM Ligne l
+ WHERE DEREF(l.Ligne_StationDepart).CodeStation = 'S019' OR DEREF(l.Ligne_StationArrivee).CodeStation = 'S019');
+-- 20) Station S
+INSERT INTO TABLE(
+  SELECT s.Station_Ligne 
+    FROM Station s 
+   WHERE s.CodeStation = 'S020'
+)
+(SELECT REF(l)
+  FROM Ligne l
+ WHERE DEREF(l.Ligne_StationDepart).CodeStation = 'S020' OR DEREF(l.Ligne_StationArrivee).CodeStation = 'S020');
+-- 21) Station T
+INSERT INTO TABLE(
+  SELECT s.Station_Ligne 
+    FROM Station s 
+   WHERE s.CodeStation = 'S021'
+)
+(SELECT REF(l)
+  FROM Ligne l
+ WHERE DEREF(l.Ligne_StationDepart).CodeStation = 'S021' OR DEREF(l.Ligne_StationArrivee).CodeStation = 'S021');
+ -- 22) Station U
+INSERT INTO TABLE(
+  SELECT s.Station_Ligne 
+    FROM Station s 
+   WHERE s.CodeStation = 'S022'
+)
+(SELECT REF(l)
+  FROM Ligne l
+ WHERE DEREF(l.Ligne_StationDepart).CodeStation = 'S022' OR DEREF(l.Ligne_StationArrivee).CodeStation = 'S022');
+-- 23) Station V
+INSERT INTO TABLE(
+  SELECT s.Station_Ligne 
+    FROM Station s 
+   WHERE s.CodeStation = 'S023'
+)
+(SELECT REF(l)
+  FROM Ligne l
+ WHERE DEREF(l.Ligne_StationDepart).CodeStation = 'S023' OR DEREF(l.Ligne_StationArrivee).CodeStation = 'S023');
 
 
--- Insertion des tronçons corrigés avec des conditions respectées
+-- ------------------------------------------------------------Insertion des tronçons----------------------------------------------------- 
+--AJOUTER INSETION FAUSSE POUR TESTER LA CONTRAINTE DE VERIFICATION-----------------------------------------
+INSERT INTO Troncon VALUES (
+  'T013',
+  12.0,
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S002'),
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S003'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M004'),--STATION DE DE FIN NE CONTINENT PAS MOYENN DE TRANSPORT METRO
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M003')--STATION DE DE DEBUT NE CONTINENT PAS MOYENN DE TRANSPORT TRM
+);
+------------------------------------------------------
 -- Tronçons avec une seule ligne associée
 INSERT INTO Troncon VALUES (
   'T001',
@@ -804,13 +948,21 @@ INSERT INTO Troncon VALUES (
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M001'),
   NULL
 );
+INSERT INTO Troncon VALUES (
+  'T002',
+  3.0,
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S018'),
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S002'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M002'),
+  NULL
+);
 
 INSERT INTO Troncon VALUES (
   'T003',
   7.0,
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S003'),
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M001'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TM001'),
   NULL
 );
 
@@ -828,7 +980,7 @@ INSERT INTO Troncon VALUES (
   6.5,
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'),
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S008'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B002'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B004'),
   NULL
 );
 
@@ -837,7 +989,7 @@ INSERT INTO Troncon VALUES (
   8.0,
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S009'),
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S010'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN002'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN003'),
   NULL
 );
 
@@ -846,7 +998,7 @@ INSERT INTO Troncon VALUES (
   10.0,
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S013'),
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B003'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B001'),
   NULL
 );
 
@@ -855,18 +1007,18 @@ INSERT INTO Troncon VALUES (
   12.0,
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S018'),
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M004'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M002'),
   NULL
 );
 
--- Tronçons avec deux lignes associées
+
 INSERT INTO Troncon VALUES (
   'T009',
   6.5,
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'),
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'),
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B002'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M002')
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B006')
 );
 
 INSERT INTO Troncon VALUES (
@@ -875,7 +1027,7 @@ INSERT INTO Troncon VALUES (
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'),
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S010'),
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN002'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TM002')
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN002')
 );
 
 INSERT INTO Troncon VALUES (
@@ -884,8 +1036,17 @@ INSERT INTO Troncon VALUES (
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S018'),
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S016'),
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B003'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M003')
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B003')
 );
+INSERT INTO Troncon VALUES (
+  'T013',
+  5.0,
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S007'),
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S008'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B006'),
+  NULL
+);
+
 
 INSERT INTO Troncon VALUES (
   'T012',
@@ -893,26 +1054,29 @@ INSERT INTO Troncon VALUES (
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S018'),
   (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'),
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M004'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TM004')
-);
-INSERT INTO Troncon VALUES (
-  'T012',
-  12.0,
-  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S018'),
-  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S004'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B001'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TM004')
-);
---AJOUTER INSETION FAUSSE POUR TESTER LA CONTRAINTE DE VERIFICATION
-INSERT INTO Troncon VALUES (
-  'T013',
-  12.0,
-  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S002'),
-  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S003'),
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M004'),--STATION DE DE FIN NE CONTINENT PAS MOYENN DE TRANSPORT METRO
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TM004')--STATION DE DE DEBUT NE CONTINENT PAS MOYENN DE TRANSPORT TRM
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M005')
 );
 
+
+
+INSERT INTO Troncon VALUES (
+  'T014',
+  12.0,
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S015'),
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S012'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN004'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN003')
+);
+INSERT INTO Troncon VALUES (
+  'T015',
+  12.0,
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S019'),
+  (SELECT REF(s) FROM Station s WHERE s.CodeStation = 'S022'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B005'),
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B006')
+);
+
+---------------------------------------------------------------------------------------------------------
 --ajouter insertion dans Station_Troncons
 INSERT INTO TABLE(
   SELECT s.Station_Troncons 
@@ -921,7 +1085,7 @@ INSERT INTO TABLE(
 )
 (SELECT REF(t)
   FROM Troncon t
- WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S001' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S001');
+ WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S001' OR DEREF(t.Troncon_StationFin).CodeStation = 'S001');
 -- 2) Station B
 INSERT INTO TABLE(
   SELECT s.Station_Troncons 
@@ -930,7 +1094,7 @@ INSERT INTO TABLE(
 )
 (SELECT REF(t)
   FROM Troncon t
- WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S002' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S002');
+ WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S002' OR DEREF(t.Troncon_StationFin).CodeStation = 'S002');
 -- 3) Station C
 INSERT INTO TABLE(
   SELECT s.Station_Troncons 
@@ -939,7 +1103,7 @@ INSERT INTO TABLE(
 )
 (SELECT REF(t)
   FROM Troncon t
- WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S003' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S003');
+ WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S003' OR DEREF(t.Troncon_StationFin).CodeStation = 'S003');
 -- 4) Station D
 INSERT INTO TABLE(
   SELECT s.Station_Troncons 
@@ -948,7 +1112,7 @@ INSERT INTO TABLE(
 )
 (SELECT REF(t)
   FROM Troncon t
- WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S004' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S004');
+ WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S004' OR DEREF(t.Troncon_StationFin).CodeStation = 'S004');
 -- 5) Station E
 INSERT INTO TABLE(
   SELECT s.Station_Troncons 
@@ -957,7 +1121,7 @@ INSERT INTO TABLE(
 )
 (SELECT REF(t)
   FROM Troncon t
- WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S005' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S005');
+ WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S005' OR DEREF(t.Troncon_StationFin).CodeStation = 'S005');
 -- 6) Station F
 INSERT INTO TABLE(
   SELECT s.Station_Troncons 
@@ -966,7 +1130,7 @@ INSERT INTO TABLE(
 )
 (SELECT REF(t)
   FROM Troncon t
- WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S005' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S006');
+ WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S005' OR DEREF(t.Troncon_StationFin).CodeStation = 'S006');
 -- 7) Station G
 INSERT INTO TABLE(
   SELECT s.Station_Troncons 
@@ -975,7 +1139,7 @@ INSERT INTO TABLE(
 )
 (SELECT REF(t)
   FROM Troncon t
- WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S007' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S007');
+ WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S007' OR DEREF(t.Troncon_StationFin).CodeStation = 'S007');
 -- 8) Station H
 INSERT INTO TABLE(
   SELECT s.Station_Troncons 
@@ -984,7 +1148,7 @@ INSERT INTO TABLE(
 )
 (SELECT REF(t)
   FROM Troncon t
-    WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S008' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S008');
+    WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S008' OR DEREF(t.Troncon_StationFin).CodeStation = 'S008');
   -- 9) Station I
   INSERT INTO TABLE(
     SELECT s.Station_Troncons 
@@ -993,7 +1157,7 @@ INSERT INTO TABLE(
   )
   (SELECT REF(t)
     FROM Troncon t
-   WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S009' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S009');
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S009' OR DEREF(t.Troncon_StationFin).CodeStation = 'S009');
   -- 10) Station J
   INSERT INTO TABLE(
     SELECT s.Station_Troncons 
@@ -1002,7 +1166,7 @@ INSERT INTO TABLE(
   )
   (SELECT REF(t)
     FROM Troncon t
-   WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S010' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S010');
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S010' OR DEREF(t.Troncon_StationFin).CodeStation = 'S010');
   -- 11) Station K
   INSERT INTO TABLE(
     SELECT s.Station_Troncons 
@@ -1011,7 +1175,7 @@ INSERT INTO TABLE(
   )
   (SELECT REF(t)
     FROM Troncon t
-   WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S011' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S011');
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S011' OR DEREF(t.Troncon_StationFin).CodeStation = 'S011');
   -- 12) Station L
   INSERT INTO TABLE(
     SELECT s.Station_Troncons 
@@ -1020,7 +1184,7 @@ INSERT INTO TABLE(
   )
   (SELECT REF(t)
     FROM Troncon t
-   WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S012' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S012');
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S012' OR DEREF(t.Troncon_StationFin).CodeStation = 'S012');
   -- 13) Station M
   INSERT INTO TABLE(
     SELECT s.Station_Troncons 
@@ -1029,7 +1193,7 @@ INSERT INTO TABLE(
   )
   (SELECT REF(t)
     FROM Troncon t
-   WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S013' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S013');
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S013' OR DEREF(t.Troncon_StationFin).CodeStation = 'S013');
   -- 14) Station N
   INSERT INTO TABLE(
     SELECT s.Station_Troncons 
@@ -1038,7 +1202,7 @@ INSERT INTO TABLE(
   )
   (SELECT REF(t)
     FROM Troncon t
-   WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S014' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S014');
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S014' OR DEREF(t.Troncon_StationFin).CodeStation = 'S014');
   -- 15) Station O
   INSERT INTO TABLE(
     SELECT s.Station_Troncons 
@@ -1047,7 +1211,7 @@ INSERT INTO TABLE(
   )
   (SELECT REF(t)
     FROM Troncon t
-   WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S015' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S015');
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S015' OR DEREF(t.Troncon_StationFin).CodeStation = 'S015');
   -- 16) Station P
   INSERT INTO TABLE(
     SELECT s.Station_Troncons 
@@ -1056,7 +1220,7 @@ INSERT INTO TABLE(
   )
   (SELECT REF(t)
     FROM Troncon t
-   WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S016' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S016');
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S016' OR DEREF(t.Troncon_StationFin).CodeStation = 'S016');
   -- 17) Station Q
   INSERT INTO TABLE(
     SELECT s.Station_Troncons 
@@ -1065,7 +1229,7 @@ INSERT INTO TABLE(
   )
   (SELECT REF(t)
     FROM Troncon t
-   WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S017' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S017');
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S017' OR DEREF(t.Troncon_StationFin).CodeStation = 'S017');
   -- 18) Station BEZ
   INSERT INTO TABLE(
     SELECT s.Station_Troncons 
@@ -1074,8 +1238,53 @@ INSERT INTO TABLE(
   )
   (SELECT REF(t)
     FROM Troncon t
-   WHERE DEREF(t.Troncon_StationDepart).CodeStation = 'S018' OR DEREF(t.Troncon_StationArrivee).CodeStation = 'S018');
-  -- ajouter insertion dans Ligne_Troncons
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S018' OR DEREF(t.Troncon_StationFin).CodeStation = 'S018');
+   -- 19) Station R
+  INSERT INTO TABLE(
+    SELECT s.Station_Troncons 
+     FROM Station s 
+    WHERE s.CodeStation = 'S019'
+  )
+  (SELECT REF(t)
+    FROM Troncon t
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S019' OR DEREF(t.Troncon_StationFin).CodeStation = 'S019');
+   -- 20) Station S
+  INSERT INTO TABLE(
+    SELECT s.Station_Troncons 
+     FROM Station s 
+    WHERE s.CodeStation = 'S020'
+  )
+  (SELECT REF(t)
+    FROM Troncon t
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S020' OR DEREF(t.Troncon_StationFin).CodeStation = 'S020');
+   -- 21) Station T
+  INSERT INTO TABLE(
+    SELECT s.Station_Troncons 
+     FROM Station s 
+    WHERE s.CodeStation = 'S021'
+  )
+  (SELECT REF(t)
+    FROM Troncon t
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S021' OR DEREF(t.Troncon_StationFin).CodeStation = 'S021');
+   -- 22) Station U
+  INSERT INTO TABLE(
+    SELECT s.Station_Troncons 
+     FROM Station s 
+    WHERE s.CodeStation = 'S022'
+  )
+  (SELECT REF(t)
+    FROM Troncon t
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S022' OR DEREF(t.Troncon_StationFin).CodeStation = 'S022');
+   -- 23) Station V
+  INSERT INTO TABLE(
+    SELECT s.Station_Troncons 
+     FROM Station s 
+    WHERE s.CodeStation = 'S023'
+  )
+  (SELECT REF(t)
+    FROM Troncon t
+   WHERE DEREF(t.Troncon_StationDebut).CodeStation = 'S023' OR DEREF(t.Troncon_StationFin).CodeStation = 'S023');
+  -- -----------------------------ajouter insertion dans Ligne_Troncons---------------------------------------------
   -- 1) Ligne B001
   INSERT INTO TABLE(
     SELECT l.Ligne_Troncon 
@@ -1230,67 +1439,204 @@ INSERT INTO TABLE(
     (SELECT REF(t)
       FROM Troncon t
      WHERE DEREF(t.Troncon__Ligne1).CodeLigne = 'B005' OR DEREF(t.Troncon__Ligne2).CodeLigne = 'B005');
+-- 18) Ligne TN005
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Troncon 
+      FROM Ligne l 
+      WHERE l.CodeLigne = 'TN005'
+    )
+    (SELECT REF(t)
+      FROM Troncon t
+     WHERE DEREF(t.Troncon__Ligne1).CodeLigne = 'TN005' OR DEREF(t.Troncon__Ligne2).CodeLigne = 'TN005');
+--19) Ligne B006
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Troncon 
+      FROM Ligne l 
+      WHERE l.CodeLigne = 'B006'
+    )
+    (SELECT REF(t)
+      FROM Troncon t
+     WHERE DEREF(t.Troncon__Ligne1).CodeLigne = 'B006' OR DEREF(t.Troncon__Ligne2).CodeLigne = 'B006');
+--20) Ligne TM005
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Troncon 
+      FROM Ligne l 
+      WHERE l.CodeLigne = 'TM005'
+    )
+    (SELECT REF(t)
+      FROM Troncon t
+     WHERE DEREF(t.Troncon__Ligne1).CodeLigne = 'TM005' OR DEREF(t.Troncon__Ligne2).CodeLigne = 'TM005');
+--21) Ligne M005
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Troncon 
+      FROM Ligne l 
+      WHERE l.CodeLigne = 'M005'
+    )
+    (SELECT REF(t)
+      FROM Troncon t
+     WHERE DEREF(t.Troncon__Ligne1).CodeLigne = 'M005' OR DEREF(t.Troncon__Ligne2).CodeLigne = 'M005');
+--22) Ligne TM006
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Troncon 
+      FROM Ligne l 
+      WHERE l.CodeLigne = 'TM006'
+    )
+    (SELECT REF(t)
+      FROM Troncon t
+     WHERE DEREF(t.Troncon__Ligne1).CodeLigne = 'TM006' OR DEREF(t.Troncon__Ligne2).CodeLigne = 'TM006');
+--23) Ligne TN006
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Troncon 
+      FROM Ligne l 
+      WHERE l.CodeLigne = 'TN006'
+    )
+    (SELECT REF(t)
+      FROM Troncon t
+     WHERE DEREF(t.Troncon__Ligne1).CodeLigne = 'TN006' OR DEREF(t.Troncon__Ligne2).CodeLigne = 'TN006');
+--24) Ligne M006
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Troncon 
+      FROM Ligne l 
+      WHERE l.CodeLigne = 'M006'
+    )
+    (SELECT REF(t)
+      FROM Troncon t
+     WHERE DEREF(t.Troncon__Ligne1).CodeLigne = 'M006' OR DEREF(t.Troncon__Ligne2).CodeLigne = 'M006');
 
--- Insertion des navettes
+
+-- ---------------------------------------------------Insertion des navettes---------------------------------------------------------------
+
+
 -- BUS (ligne B001)
 INSERT INTO Navette VALUES (
   'N001', 'Mercedes', 2020,
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B001'),
-  (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'BUS'),  Navette_Voyage()
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'BUS'),T_Set_Ref_Voyage() 
 );
 
 -- METRO (ligne M001)
 INSERT INTO Navette VALUES (
   'N002', 'Alstom', 2019,
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M001'),
-  (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'MET'),
-  Navette_Voyage()
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'MET'),
+T_Set_Ref_Voyage()
 );
 
 -- TRAM (ligne TR001)
 INSERT INTO Navette VALUES (
   'N003', 'CAF', 2021,
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TR001'),
-  (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRM'),
-  Navette_Voyage()
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TM001'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRM'),
+T_Set_Ref_Voyage()
 );
 
 -- TRAIN (ligne TR002)
 INSERT INTO Navette VALUES (
   'N004', 'Bombardier', 2022,
-  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TR002'),
-  (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRN'),
-  Navette_Voyage()
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN002'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'),
+T_Set_Ref_Voyage()
 );
 
 -- TRAIN (ligne TN001)
 INSERT INTO Navette VALUES (
-  'N005', 'Siemens', 2023,
+  'N005', 'Siemens', 2021,
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN001'),
-  (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRN'),
-  Navette_Voyage()
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'),
+T_Set_Ref_Voyage()
 );
 
 -- TRAIN (ligne TN002)
 INSERT INTO Navette VALUES (
-  'N006', 'Hitachi', 2024,
+  'N006', 'Hitachi', 2016,
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN002'),
-  (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRN'),
-  Navette_Voyage()
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'),
+T_Set_Ref_Voyage()
 );
 
 -- TRAIN (ligne TN003)
 INSERT INTO Navette VALUES (
   'N007', 'Hyundai Rotem', 2025,
   (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN003'),
-  (SELECT REF(m) FROM TMoytransport m WHERE m.Abreviation = 'TRN'),
-  Navette_Voyage()
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'),
+T_Set_Ref_Voyage()
 );
+-- TRAIN (ligne TN004)
+INSERT INTO Navette VALUES (
+  'N008', 'Bombardier', 2023,
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN004'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'),
+T_Set_Ref_Voyage());
+-- BUS (ligne B002)
+INSERT INTO Navette VALUES (
+  'N009', 'Iveco', 2023,
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B002'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'BUS'),
+T_Set_Ref_Voyage()  
+);
+-- metro (ligne M002)
+INSERT INTO Navette VALUES (
+  'N010', 'Alstom', 2022,
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M002'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'MET'),
+T_Set_Ref_Voyage()
+);
+-- TRAM (ligne TM002)
+INSERT INTO Navette VALUES (
+  'N011', 'CAF', 2021,
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TM002'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRM'),
+T_Set_Ref_Voyage()
+);
+-- TRAIN (ligne TN005)
+INSERT INTO Navette VALUES (
+  'N012', 'Bombardier', 2022,
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN005'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'),
+T_Set_Ref_Voyage()
+);
+--BUS (ligne B003)
+INSERT INTO Navette VALUES (
+  'N013', 'Mercedes', 2020,
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B003'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'BUS'),
+T_Set_Ref_Voyage()
+);
+-- BUS (ligne B004)
+INSERT INTO Navette VALUES (
+  'N014', 'Mercedes', 2020,
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'B004'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'BUS'),
+T_Set_Ref_Voyage()
+);
+--metro (ligne M006)
+INSERT INTO Navette VALUES (
+  'N015', 'Alstom', 2022,
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'M006'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'MET'),
+T_Set_Ref_Voyage()
+);
+-- TRAM (ligne TM003)
+INSERT INTO Navette VALUES (
+  'N016', 'CAF', 2021,
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TM003'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRM'),
+T_Set_Ref_Voyage()
+);
+-- TRAIN (ligne TN006)
+INSERT INTO Navette VALUES (
+  'N017', 'Bombardier', 2022,
+  (SELECT REF(l) FROM Ligne l WHERE l.CodeLigne = 'TN006'),
+  (SELECT REF(m) FROM Moytransport m WHERE m.Abreviation = 'TRN'),
+T_Set_Ref_Voyage()
+);
+
+
 --mise a jour dans MoyenTransport_Navette apres insertion de navette
 -- 1) BUS
 INSERT INTO TABLE(
   SELECT mt.Moytransport_Navette 
-    FROM TMoytransport mt 
+    FROM Moytransport mt 
    WHERE mt.Abreviation = 'BUS'
 )
 SELECT REF(n)
@@ -1300,7 +1646,7 @@ SELECT REF(n)
 -- 2) MET
 INSERT INTO TABLE(
   SELECT mt.Moytransport_Navette 
-    FROM TMoytransport mt 
+    FROM Moytransport mt 
    WHERE mt.Abreviation = 'MET'
 )
 SELECT REF(n)
@@ -1310,7 +1656,7 @@ SELECT REF(n)
 -- 3) TRM
 INSERT INTO TABLE(
   SELECT mt.Moytransport_Navette 
-    FROM TMoytransport mt 
+    FROM Moytransport mt 
    WHERE mt.Abreviation = 'TRM'
 )
 SELECT REF(n)
@@ -1320,7 +1666,7 @@ SELECT REF(n)
 -- 4) TRN
 INSERT INTO TABLE(
   SELECT mt.Moytransport_Navette 
-    FROM TMoytransport mt 
+    FROM Moytransport mt 
    WHERE mt.Abreviation = 'TRN'
 )
 SELECT REF(n)
@@ -1494,17 +1840,149 @@ SELECT REF(n)
      (SELECT REF(n)
     FROM Navette n
     WHERE DEREF(n.Navette_Ligne).CodeLigne = 'B005');
+    -- 18) Ligne TN005
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Navette  
+      FROM Ligne l
+
+      WHERE l.CodeLigne = 'TN005'
+    )
+     (SELECT REF(n)
+    FROM Navette n
+    WHERE DEREF(n.Navette_Ligne).CodeLigne = 'TN005');
+    -- 19) Ligne B006
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Navette  
+      FROM Ligne l
+
+      WHERE l.CodeLigne = 'B006'
+    )
+     (SELECT REF(n)
+    FROM Navette n
+    WHERE DEREF(n.Navette_Ligne).CodeLigne = 'B006');
+    -- 20) Ligne TM005
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Navette  
+      FROM Ligne l
+
+      WHERE l.CodeLigne = 'TM005'
+    )
+     (SELECT REF(n)
+    FROM Navette n
+    WHERE DEREF(n.Navette_Ligne).CodeLigne = 'TM005');
+    -- 21) Ligne M005
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Navette  
+      FROM Ligne l
+
+      WHERE l.CodeLigne = 'M005'
+    )
+     (SELECT REF(n)
+    FROM Navette n
+    WHERE DEREF(n.Navette_Ligne).CodeLigne = 'M005');
+    -- 22) Ligne TM006
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Navette  
+      FROM Ligne l
+
+      WHERE l.CodeLigne = 'TM006'
+    )
+     (SELECT REF(n)
+    FROM Navette n
+    WHERE DEREF(n.Navette_Ligne).CodeLigne = 'TM006');
+    -- 23) Ligne TN006
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Navette  
+      FROM Ligne l
+
+      WHERE l.CodeLigne = 'TN006'
+    )
+     (SELECT REF(n)
+    FROM Navette n
+    WHERE DEREF(n.Navette_Ligne).CodeLigne = 'TN006');
+    -- 24) Ligne M006
+    INSERT INTO TABLE(
+      SELECT l.Ligne_Navette  
+      FROM Ligne l
+
+      WHERE l.CodeLigne = 'M006'
+    )
+     (SELECT REF(n)
+    FROM Navette n
+    WHERE DEREF(n.Navette_Ligne).CodeLigne = 'M006');
 
 
 -- Insertion des voyages
-INSERT INTO Voyage VALUES ('V0001', 30, TO_DATE('01-01-2025', 'DD-MM-YYYY'), TO_DATE('06:00', 'HH24:MI'), 'Aller', 40, 'On time', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N001'));
-INSERT INTO Voyage VALUES ('V0002', 30, TO_DATE('01-01-2025', 'DD-MM-YYYY'), TO_DATE('07:00', 'HH24:MI'), 'Retour', 35, 'panne', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N001'));
-INSERT INTO Voyage VALUES ('V0003', 20, TO_DATE('01-01-2025', 'DD-MM-YYYY'), TO_DATE('06:30', 'HH24:MI'), 'Aller', 150, 'On time', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N002'));
-INSERT INTO Voyage VALUES ('V0004', 20, TO_DATE('01-01-2025', 'DD-MM-YYYY'), TO_DATE('07:30', 'HH24:MI'), 'Retour', 140, 'On time', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N002'));
-INSERT INTO Voyage VALUES ('V0005', 50, TO_DATE('01-02-2025', 'DD-MM-YYYY'), TO_DATE('08:30', 'HH24:MI'), 'Retour', 140, 'panne', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N003'));
-INSERT INTO Voyage VALUES ('V0006', 50, TO_DATE('01-02-2025', 'DD-MM-YYYY'), TO_DATE('09:30', 'HH24:MI'), 'Aller', 140, 'accident', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N003'));
-INSERT INTO Voyage VALUES ('V0007', 40, TO_DATE('01-02-2025', 'DD-MM-YYYY'), TO_DATE('10:30', 'HH24:MI'), 'Retour', 140, 'retard', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N004'));
---mise a jour dans Navette_Voyage apres insertion dans voyage pour toutes les navettes
+INSERT INTO Voyage VALUES ('V0001', 30, TO_DATE('01-01-2025', 'DD-MM-YYYY'),'06:00', 'Aller', 40, 'On time', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N001'));
+INSERT INTO Voyage VALUES ('V0002', 30, TO_DATE('02-01-2025', 'DD-MM-YYYY'), '07:00', 'Rtour', 35, 'panne', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N001'));
+INSERT INTO Voyage VALUES ('V0003', 20, TO_DATE('03-01-2025', 'DD-MM-YYYY'), '06:30', 'Aller', 150, 'On time', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N002'));
+INSERT INTO Voyage VALUES ('V0004', 20, TO_DATE('06-01-2025', 'DD-MM-YYYY'), '07:30', 'Rtour', 140, 'On time', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N002'));
+INSERT INTO Voyage VALUES ('V0005', 50, TO_DATE('08-01-2025', 'DD-MM-YYYY'), '08:30', 'Rtour', 140, 'panne', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N003'));
+INSERT INTO Voyage VALUES ('V0006', 50, TO_DATE('05-01-2025', 'DD-MM-YYYY'), '09:30', 'Aller', 140, 'accident', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N003'));
+INSERT INTO Voyage VALUES ('V0007', 40, TO_DATE('07-01-2025', 'DD-MM-YYYY'), '10:30', 'Rtour', 140, 'retard', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N004'));
+
+--ajouter plusieurs voyages par jour, sur une période de deux mois au minimum du 01-01-2025 au 01-03-2025)
+BEGIN
+  FOR d IN 1..60 LOOP -- Étendre la période à 60 jours pour deux mois
+    FOR v IN 1..5 LOOP -- 5 voyages par jour
+      INSERT INTO Voyage VALUES (
+        'V' || TO_CHAR(1000 + (d - 1) * 5 + v, 'FM0000'),
+        30 + MOD(v, 10), -- Durée aléatoire
+        TO_DATE('01-01-2025', 'DD-MM-YYYY') + (d - 1), -- Date incrémentée
+        TO_CHAR(TO_DATE('06:00', 'HH24:MI') + NUMTODSINTERVAL(MOD(v, 24), 'HOUR'), 'HH24:MI'), -- Heure départ
+        CASE MOD(v, 2) WHEN 0 THEN 'Aller' ELSE 'Rtour' END, -- Direction
+        50 + MOD(v, 1000), -- Nombre passagers
+        CASE MOD(v, 4) 
+          WHEN 0 THEN 'On time' 
+          WHEN 1 THEN 'retard' 
+          WHEN 2 THEN 'accident'
+          ELSE 'panne' 
+        END, -- Observation
+        (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = CASE MOD(v + d, 17) + 1 
+          WHEN 1 THEN 'N001' 
+          WHEN 2 THEN 'N002' 
+          WHEN 3 THEN 'N003' 
+          WHEN 4 THEN 'N004' 
+          WHEN 5 THEN 'N005' 
+          WHEN 6 THEN 'N006' 
+          WHEN 7 THEN 'N007' 
+          WHEN 8 THEN 'N008' 
+          WHEN 9 THEN 'N009' 
+          WHEN 10 THEN 'N010' 
+          WHEN 11 THEN 'N011' 
+          WHEN 12 THEN 'N012' 
+          WHEN 13 THEN 'N013' 
+          WHEN 14 THEN 'N014' 
+          WHEN 15 THEN 'N015' 
+          WHEN 16 THEN 'N016' 
+          ELSE 'N017' 
+        END)
+      );
+    END LOOP;
+  END LOOP;
+
+  -- Mise à jour des voyages dans les navettes
+  FOR navette_id IN (
+    SELECT DISTINCT DEREF(v.Voyage_Navette).NumeroNavette AS NumeroNavette
+    FROM Voyage v
+  ) LOOP
+    INSERT INTO TABLE(
+      SELECT n.Navette_Voyage 
+      FROM Navette n 
+      WHERE n.NumeroNavette = navette_id.NumeroNavette
+    )
+    (SELECT REF(v)
+      FROM Voyage v
+      WHERE DEREF(v.Voyage_Navette).NumeroNavette = navette_id.NumeroNavette);
+  END LOOP;
+END;
+/
+
+INSERT INTO Voyage VALUES ('V0008', 40, TO_DATE('03-02-2025', 'DD-MM-YYYY'), TO_DATE('2:30', 'HH24:MI'), 'Retour', 140, 'retard', (SELECT REF(n) FROM Navette n WHERE n.NumeroNavette = 'N007'));
+
+
+--insertion 
+--
 INSERT INTO TABLE(
   SELECT n.Navette_Voyage 
     FROM Navette n 
@@ -1513,7 +1991,7 @@ INSERT INTO TABLE(
 (SELECT REF(v)
   FROM Voyage v
  WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N001');
-
+--
 INSERT INTO TABLE(
   SELECT n.Navette_Voyage 
     FROM Navette n 
@@ -1522,7 +2000,7 @@ INSERT INTO TABLE(
 (SELECT REF(v)
   FROM Voyage v
  WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N002');
-
+--
 INSERT INTO TABLE(
   SELECT n.Navette_Voyage 
     FROM Navette n 
@@ -1531,7 +2009,7 @@ INSERT INTO TABLE(
 (SELECT REF(v)
   FROM Voyage v
  WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N003');
-
+--
 INSERT INTO TABLE(
   SELECT n.Navette_Voyage 
     FROM Navette n 
@@ -1540,7 +2018,7 @@ INSERT INTO TABLE(
 (SELECT REF(v)
   FROM Voyage v
  WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N004');
-
+--
 INSERT INTO TABLE(
   SELECT n.Navette_Voyage 
     FROM Navette n 
@@ -1549,7 +2027,7 @@ INSERT INTO TABLE(
 (SELECT REF(v)
   FROM Voyage v
  WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N005');
-
+--
 INSERT INTO TABLE(
   SELECT n.Navette_Voyage 
     FROM Navette n 
@@ -1558,7 +2036,7 @@ INSERT INTO TABLE(
 (SELECT REF(v)
   FROM Voyage v
  WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N006');
-
+--
 INSERT INTO TABLE(
   SELECT n.Navette_Voyage 
     FROM Navette n 
@@ -1567,7 +2045,97 @@ INSERT INTO TABLE(
 (SELECT REF(v)
   FROM Voyage v
  WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N007');
-
+--
+INSERT INTO TABLE(
+  SELECT n.Navette_Voyage 
+    FROM Navette n 
+   WHERE n.NumeroNavette = 'N008'
+)
+(SELECT REF(v)
+  FROM Voyage v
+ WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N008');
+--
+INSERT INTO TABLE(
+  SELECT n.Navette_Voyage 
+    FROM Navette n 
+   WHERE n.NumeroNavette = 'N009'
+)
+(SELECT REF(v)
+  FROM Voyage v
+ WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N009');
+--
+INSERT INTO TABLE(
+  SELECT n.Navette_Voyage 
+    FROM Navette n 
+   WHERE n.NumeroNavette = 'N010'
+)
+(SELECT REF(v)
+  FROM Voyage v
+ WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N010');
+ --
+INSERT INTO TABLE(
+  SELECT n.Navette_Voyage 
+    FROM Navette n 
+   WHERE n.NumeroNavette = 'N011'
+)
+(SELECT REF(v)
+  FROM Voyage v
+ WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N011');
+ --
+INSERT INTO TABLE(
+  SELECT n.Navette_Voyage 
+    FROM Navette n 
+   WHERE n.NumeroNavette = 'N012'
+)
+(SELECT REF(v)
+  FROM Voyage v
+ WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N012');
+ --
+INSERT INTO TABLE(
+  SELECT n.Navette_Voyage 
+    FROM Navette n 
+   WHERE n.NumeroNavette = 'N013'
+)
+(SELECT REF(v)
+  FROM Voyage v
+ WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N013');
+ --
+INSERT INTO TABLE(
+  SELECT n.Navette_Voyage 
+    FROM Navette n 
+   WHERE n.NumeroNavette = 'N014'
+)
+(SELECT REF(v)
+  FROM Voyage v
+ WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N014');
+ --
+INSERT INTO TABLE(
+  SELECT n.Navette_Voyage 
+    FROM Navette n 
+   WHERE n.NumeroNavette = 'N015'
+)
+(SELECT REF(v)
+  FROM Voyage v
+ WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N015');
+ --
+INSERT INTO TABLE(
+  SELECT n.Navette_Voyage 
+    FROM Navette n 
+   WHERE n.NumeroNavette = 'N016'
+)
+(SELECT REF(v)
+  FROM Voyage v
+ WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N016');
+ --
+INSERT INTO TABLE(
+  SELECT n.Navette_Voyage 
+    FROM Navette n 
+   WHERE n.NumeroNavette = 'N017'
+)
+(SELECT REF(v)
+  FROM Voyage v
+ WHERE DEREF(v.Voyage_Navette).NumeroNavette = 'N017');
+-- ---------------------------------------------------Interrogation des données---------------------------------------------------------------
 
 
 
@@ -1579,6 +2147,7 @@ SELECT
     v.DateVoyage,
     DEREF(n.Navette_Moytransport).Abreviation AS MoyenTransport,
     n.NumeroNavette,
+    n.Marque,
     v.Observation
 FROM 
     Voyage v,
@@ -1604,7 +2173,7 @@ SELECT
     n.AnneeMiseEnCirculation AS AnneeMiseEnService,
     COUNT(v.NumeroVoyage) AS NombreVoyages
 FROM 
-    Navette n
+    Navette n   
 JOIN 
     Voyage v ON DEREF(v.Voyage_Navette).NumeroNavette = n.NumeroNavette
 WHERE 
@@ -1621,17 +2190,26 @@ HAVING
             GROUP BY DEREF(v2.Voyage_Navette).NumeroNavette
         )
     );
---13. Quelles sont les stations principales offrant au moins 2 moyens de transport ? (préciser la station et les moyens de transport offerts)
-SELECT 
+    --expliquer en dettailes cette requete
+-- Cette requête permet de lister les navettes ayant effectué le maximum de voyages durant le mois de janvier 2025.
+-- Elle sélectionne le numéro de la navette, le type de transport, l'année de mise en service et le nombre de voyages effectués.
+-- La jointure entre Navette et Voyage est effectuée sur le numéro de la navette.
+-- La condition WHERE filtre les voyages pour ne garder que ceux effectués en janvier 2025.
+---- La sous-requête calcule le nombre de voyages pour chaque navette durant janvier 2025 et retourne le maximum.
+-- La clause GROUP BY regroupe les résultats par navette, type de transport et année de mise en service.
+-- La clause HAVING compare le nombre de voyages de chaque navette avec le maximum trouvé dans une sous-requête.
+-- La sous-requête calcule le nombre de voyages pour chaque navette durant janvier 2025 et retourne le maximum.
+
+
+
+--13. Quelles sont les stations  offrant au moins 2 moyens de transport ? (préciser la station et les moyens de transport offerts)
+SELECT
     s.CodeStation AS Station,
-    LISTAGG(DEREF(m).Abreviation, ', ') AS MoyensTransportOfferts
-FROM 
-    Station s
-JOIN 
+    LISTAGG(DEREF(VALUE(m)).Abreviation, ', ') AS MoyensTransportOfferts
+FROM
+    Station s,
     TABLE(s.Station_MoyenTransport) m
-WHERE 
-    s.EstPrincipale = 1
-GROUP BY 
+GROUP BY
     s.CodeStation
-HAVING 
-    COUNT(DISTINCT DEREF(m).Abreviation) >= 2;
+HAVING
+    COUNT(DISTINCT DEREF(VALUE(m)).Abreviation) >= 2;
