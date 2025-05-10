@@ -1,0 +1,330 @@
+[
+  {
+    "_id": "V0001",
+    "duree": 30,
+    "date_voyage": "2025-01-01",
+    "heure_depart": "06:00",
+    "sens": "Aller",
+    "nb_voyageurs": 40,
+    "observation": "On time",
+    "navette": {
+      "numero": "N001",
+      "marque": "Mercedes",
+      "annee_mise_en_service": 2020,
+      "moyen_transport": {
+        "abreviation": "BUS",
+        "heure_ouverture": "06:00",
+        "heure_fermeture": "22:00",
+        "nb_moyen_voyageurs": 200,
+        "ligne": {
+          "code": "B001",
+          "station_depart": {
+            "code": "S001",
+            "nom": "Station A",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 48.8566,
+              "latitude": 2.3522
+            }
+          },
+          "station_arrivee": {
+            "code": "S004",
+            "nom": "Station D",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 48.858,
+              "latitude": 2.355
+            }
+          },
+          "troncons": [
+            {
+              "numero": "T001",
+              "longueur_km": 5.0,
+              "duree_estimee": 15,
+              "station_depart": {
+                "code": "S001",
+                "nom": "Station A"
+              },
+              "station_arrivee": {
+                "code": "S002",
+                "nom": "Station B"
+              }
+            },
+            {
+              "numero": "T002",
+              "longueur_km": 3.0,
+              "duree_estimee": 10,
+              "station_depart": {
+                "code": "S002",
+                "nom": "Station B"
+              },
+              "station_arrivee": {
+                "code": "S003",
+                "nom": "Station C"
+              }
+            },
+            {
+              "numero": "T003",
+              "longueur_km": 2.0,
+              "duree_estimee": 5,
+              "station_depart": {
+                "code": "S003",
+                "nom": "Station C"
+              },
+              "station_arrivee": {
+                "code": "S004",
+                "nom": "Station D"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "_id": "V0002",
+    "duree": 30,
+    "date_voyage": "2025-01-02",
+    "heure_depart": "07:00",
+    "sens": "Retour",
+    "nb_voyageurs": 35,
+    "observation": "Panne",
+    "navette": {
+      "numero": "N001",
+      "marque": "Mercedes",
+      "annee_mise_en_service": 2020,
+      "moyen_transport": {
+        "abreviation": "BUS",
+        "heure_ouverture": "06:00",
+        "heure_fermeture": "22:00",
+        "nb_moyen_voyageurs": 200,
+        "ligne": {
+          "code": "B001",
+          "station_depart": {
+            "code": "S001",
+            "nom": "Station A",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 48.8566,
+              "latitude": 2.3522
+            }
+          },
+          "station_arrivee": {
+            "code": "S004",
+            "nom": "Station D",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 48.858,
+              "latitude": 2.355
+            }
+          },
+          "troncons": [
+            {
+              "numero": "T001",
+              "longueur_km": 5.0,
+              "duree_estimee": 15,
+              "station_depart": {
+                "code": "S001",
+                "nom": "Station A"
+              },
+              "station_arrivee": {
+                "code": "S002",
+                "nom": "Station B"
+              }
+            },
+            {
+              "numero": "T002",
+              "longueur_km": 3.0,
+              "duree_estimee": 10,
+              "station_depart": {
+                "code": "S002",
+                "nom": "Station B"
+              },
+              "station_arrivee": {
+                "code": "S003",
+                "nom": "Station C"
+              }
+            },
+            {
+              "numero": "T003",
+              "longueur_km": 2.0,
+              "duree_estimee": 5,
+              "station_depart": {
+                "code": "S003",
+                "nom": "Station C"
+              },
+              "station_arrivee": {
+                "code": "S004",
+                "nom": "Station D"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "_id": "V0003",
+    "duree": 20,
+    "date_voyage": "2025-01-03",
+    "heure_depart": "06:30",
+    "sens": "Aller",
+    "nb_voyageurs": 150,
+    "observation": "On time",
+    "navette": {
+      "numero": "N002",
+      "marque": "Alstom",
+      "annee_mise_en_service": 2019,
+      "moyen_transport": {
+        "abreviation": "MET",
+        "heure_ouverture": "05:30",
+        "heure_fermeture": "23:30",
+        "nb_moyen_voyageurs": 200,
+        "ligne": {
+          "code": "M001",
+          "station_depart": {
+            "code": "S001",
+            "nom": "Station A",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 48.8566,
+              "latitude": 2.3522
+            }
+          },
+          "station_arrivee": {
+            "code": "S004",
+            "nom": "Station D",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 48.858,
+              "latitude": 2.355
+            }
+          },
+          "troncons": [
+            {
+              "numero": "T001",
+              "longueur_km": 5.0,
+              "duree_estimee": 15,
+              "station_depart": {
+                "code": "S001",
+                "nom": "Station A"
+              },
+              "station_arrivee": {
+                "code": "S002",
+                "nom": "Station B"
+              }
+            },
+            {
+              "numero": "T002",
+              "longueur_km": 3.0,
+              "duree_estimee": 10,
+              "station_depart": {
+                "code": "S002",
+                "nom": "Station B"
+              },
+              "station_arrivee": {
+                "code": "S003",
+                "nom": "Station C"
+              }
+            },
+            {
+              "numero": "T003",
+              "longueur_km": 2.0,
+              "duree_estimee": 5,
+              "station_depart": {
+                "code": "S003",
+                "nom": "Station C"
+              },
+              "station_arrivee": {
+                "code": "S004",
+                "nom": "Station D"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "_id": "V0009",
+    "duree": 120,
+    "date_voyage": "2025-01-01",
+    "heure_depart": "05:00",
+    "sens": "Aller",
+    "nb_voyageurs": 30,
+    "observation": "On time",
+    "navette": {
+      "numero": "N002",
+      "marque": "Alstom",
+      "annee_mise_en_service": 2019,
+      "moyen_transport": {
+        "abreviation": "MET",
+        "heure_ouverture": "05:30",
+        "heure_fermeture": "23:30",
+        "nb_moyen_voyageurs": 200,
+        "ligne": {
+          "code": "M002",
+          "station_depart": {
+            "code": "S001",
+            "nom": "Station A",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 48.8566,
+              "latitude": 2.3522
+            }
+          },
+          "station_arrivee": {
+            "code": "S004",
+            "nom": "Station D",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 48.858,
+              "latitude": 2.355
+            }
+          },
+          "troncons": [
+            {
+              "numero": "T001",
+              "longueur_km": 5.0,
+              "duree_estimee": 15,
+              "station_depart": {
+                "code": "S001",
+                "nom": "Station A"
+              },
+              "station_arrivee": {
+                "code": "S002",
+                "nom": "Station B"
+              }
+            },
+            {
+              "numero": "T002",
+              "longueur_km": 3.0,
+              "duree_estimee": 10,
+              "station_depart": {
+                "code": "S002",
+                "nom": "Station B"
+              },
+              "station_arrivee": {
+                "code": "S003",
+                "nom": "Station C"
+              }
+            },
+            {
+              "numero": "T003",
+              "longueur_km": 2.0,
+              "duree_estimee": 5,
+              "station_depart": {
+                "code": "S003",
+                "nom": "Station C"
+              },
+              "station_arrivee": {
+                "code": "S004",
+                "nom": "Station D"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+]
