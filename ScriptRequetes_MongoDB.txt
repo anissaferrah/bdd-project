@@ -1,0 +1,64 @@
+Requete 1:
+db.Voyage.find({"date voyage": "2025-01-01"}).pretty()
+
+Requete 2:
+db.Voyage.aggregate([{$match:{"observation":"On time"}},
+{$project: {
+     "_id": 1,  
+     "date_voyage": 1,
+      "heure_depart": 1,
+      "sens": 1,
+      "navette.numero": 1,
+      "navette.moyen_transport.abreviation": 1,
+      "navette.moyen_transport.ligne.code": 1
+    }},
+{$out:"BON-Voyage"}
+])
+
+#affichage de collection 
+db["BON-Voyage"].find().pretty()
+
+Requete 3:
+db.Voyage.aggregate([
+  {
+    $group: {
+      _id: "$navette.moyen_transport.ligne.code",
+      totalVoyages: { $sum: 1 }
+    }
+  },
+  {
+    $sort: { totalVoyages: -1 }
+  },
+  {
+    $out: "Ligne-Voyages"
+  }
+])
+
+
+#affichage de collection 
+db["Ligne-Voyages"].find().pretty()
+
+
+#Requete4(pas encore)
+
+
+
+#Requete 5:
+var mapFunction = function() {
+  emit(this.navette.moyen_transport.ligne.code, 1);
+};
+
+var reduceFunction = function(key, values) {
+  return Array.sum(values);
+};
+
+db.Voyage.mapReduce(
+  mapFunction,
+  reduceFunction,
+  {
+    out: "Ligne-Voyages"
+  }
+);
+
+#Affichage:
+db["Ligne-Voyages"].find().sort({ value: -1 }).pretty();
