@@ -1,5 +1,9 @@
 from flask import Flask, render_template
 import cx_Oracle
+from bson import json_util
+from pymongo import MongoClient
+from datetime import datetime
+
 
 app = Flask(__name__)
 
@@ -20,6 +24,105 @@ def executer_requete(sql):
         print("Message Oracle :", error.message)
         return [], [] 
 
+def executer_requete_mongodb(numero):
+    try:
+        client = MongoClient("mongodb://localhost:27017/")
+        db = client["transport"]
+        if numero == 1:
+           result = db.Voyage.find({"date_voyage": datetime(2025, 1, 1)})
+        elif numero == 2:
+           pipeline = [
+             {"$match": {"observation": "On time"}},
+             {"$project": {
+            "_id": 1,
+            "date_voyage": 1,
+            "heure_depart": 1,
+            "sens": 1,
+            "navette.numero": 1,
+            "navette.moyen_transport.abreviation": 1,
+            "navette.moyen_transport.ligne.code": 1
+            }},
+            {"$out": "BON-Voyage"}
+            ]
+           db.Voyage.aggregate(pipeline)
+
+          # Requête d’affichage de la collection "BON-Voyage"
+           result = db["BON-Voyage"].find()
+        elif numero == 3:
+              pipeline = [
+                  {"$group": {"_id": "$navette.moyen_transport.ligne.code", "totalVoyages": {"$sum": 1}} },
+                  {"$sort": { "totalVoyages": -1 }},
+                  {"$out": "Ligne-Voyages"}
+              ]
+              db.Voyage.aggregate(pipeline)
+              result = db["Ligne-Voyages"].find()
+        elif numero == 4:
+               db.Voyage.update_many(
+                 {
+                    "navette.moyen_transport.abreviation": "MET",
+                   "date_voyage": {"$lt": datetime(2025, 1, 15)}
+                 },
+                 {
+                   "$inc": {"nb_voyageurs": 100}
+                 }
+                )
+               result = db.Voyage.find({
+                            "navette.moyen_transport.abreviation": "MET",
+                            "date_voyage": {"$lt": datetime(2025, 1, 15)}
+                        })
+        elif numero == 5:
+            map_function = """function() {
+                emit(this.navette.moyen_transport.ligne.code, 1);
+            }"""
+    
+            reduce_function = """function(key, values) {
+                return Array.sum(values);
+            }"""
+    
+             
+            db.Voyage.map_reduce(
+                map_function,
+                reduce_function,
+                out="Ligne-Voyages"  
+            )
+    
+            
+            result = db["Ligne-Voyages"].find().sort("value", -1)
+
+        elif numero == 6:
+            result = db.Voyage.aggregate([
+            {
+                "$group": {
+                    "_id": {
+                        "numeroNavette": "$navette.numero",
+                        "abreviation": "$navette.moyen_transport.abreviation"
+                    },
+                    "totalVoyages": {"$sum": 1}
+                }
+            },
+            {"$sort": {"totalVoyages": -1}},
+            {"$limit": 1}
+        ])
+        else:
+            return [], []
+
+        colonnes = set()
+        rows = []
+
+        for doc in result:
+            flat = json_util.loads(json_util.dumps(doc))  # JSON-safe dict
+            colonnes.update(flat.keys())
+            rows.append(flat)
+
+        colonnes = list(colonnes)
+        table = [[row.get(col, "") for col in colonnes] for row in rows]
+        return colonnes, table
+
+    except Exception as e:
+        print("Erreur MongoDB :", e)
+        return [], []
+
+ 
 
 @app.route('/')
 def home():
@@ -158,5 +261,52 @@ def get_reponse(question):
         html_table += ''.join(f'<tr>{"".join(f"<td>{cell}</td>" for cell in row)}</tr>' for row in results)
         html_table += '</table><br><a href="/">Retour à accueil</a>'
         return html_table 
+    
+@app.route('/reponse_mongo/<int:numero>')
+def get_reponse_mongo(numero):
+    colonnes, results = executer_requete_mongodb(numero)
+    if not results:
+        return """
+        <h3>Résultats de la requête MongoDB</h3>
+        <p>Aucun résultat trouvé ou erreur dans la requête.</p>
+        <a href='/'>Retour à l'accueil</a>
+        """
+
+    html = '<h3>Résultats de la requête MongoDB</h3>'
+    for row in results:
+        html += '<pre>{}</pre><hr>'.format(
+            json_util.dumps(dict(zip(colonnes, row)), indent=4, ensure_ascii=False)
+        )
+    html += '<a href="/">Retour à l\'accueil</a>'
+    return html
+
+@app.route('/reponse_mongo/<int:numero>')
+def get_reponse_mongo(numero):
+    colonnes, results = executer_requete_mongodb(numero)
+    if not results:
+        return """
+        <h3>Résultats de la requête </h3>
+        <p>Aucun résultat trouvé ou erreur dans la requête.</p>
+        <a href='/'>Retour à l'accueil</a>
+        """
+
+    # Assure que les valeurs soient lisibles même si elles sont imbriquées (ex: dictionnaires)
+    def flatten_value(val):
+        if isinstance(val, dict):
+            return json_util.dumps(val, ensure_ascii=False)
+        return val
+
+    html_table = '<h3>Résultats de la requête </h3><table border="1">'
+    html_table += '<tr>' + ''.join(f'<th>{col}</th>' for col in colonnes) + '</tr>'
+    for row in results:
+        html_table += '<tr>'
+        for cell in row:
+            html_table += f'<td>{flatten_value(cell)}</td>'
+        html_table += '</tr>'
+    html_table += '</table><br><a href="/">Retour à l\'accueil</a>'
+    return html_table
+
+
+# === MAIN ===
 if __name__ == '__main__':
     app.run(debug=True)
