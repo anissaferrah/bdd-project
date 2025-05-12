@@ -2,7 +2,7 @@
   {
     "_id": "V0001",
     "duree": 30,
-    "date_voyage": "2025-01-01",
+    "date_voyage": { "$date": "2025-01-01T00:00:00Z" },
     "heure_depart": "06:00",
     "sens": "Aller",
     "nb_voyageurs": 40,
@@ -23,7 +23,7 @@
             "nom": "Station A",
             "est_principale": true,
             "coordonnees": {
-              "longitude": 48.8566,
+              "longitude": 38.8566,
               "latitude": 2.3522
             }
           },
@@ -32,48 +32,21 @@
             "nom": "Station D",
             "est_principale": true,
             "coordonnees": {
-              "longitude": 48.858,
+              "longitude": 78.858,
               "latitude": 2.355
             }
           },
           "troncons": [
             {
-              "numero": "T001",
-              "longueur_km": 5.0,
-              "duree_estimee": 15,
-              "station_depart": {
-                "code": "S001",
-                "nom": "Station A"
+              "numero": "T007",
+              "longueur_km": 10.0,
+              "station_debut": {
+                "code": "S013",
+                "nom": "Station M"
               },
-              "station_arrivee": {
-                "code": "S002",
-                "nom": "Station B"
-              }
-            },
-            {
-              "numero": "T002",
-              "longueur_km": 3.0,
-              "duree_estimee": 10,
-              "station_depart": {
-                "code": "S002",
-                "nom": "Station B"
-              },
-              "station_arrivee": {
-                "code": "S003",
-                "nom": "Station C"
-              }
-            },
-            {
-              "numero": "T003",
-              "longueur_km": 2.0,
-              "duree_estimee": 5,
-              "station_depart": {
-                "code": "S003",
-                "nom": "Station C"
-              },
-              "station_arrivee": {
-                "code": "S004",
-                "nom": "Station D"
+              "station_de_fin": {
+                "code": "S016",
+                "nom": "Station P"
               }
             }
           ]
@@ -84,7 +57,7 @@
   {
     "_id": "V0002",
     "duree": 30,
-    "date_voyage": "2025-01-02",
+    "date_voyage": { "$date": "2025-01-02T00:00:00Z" },
     "heure_depart": "07:00",
     "sens": "Retour",
     "nb_voyageurs": 35,
@@ -105,7 +78,7 @@
             "nom": "Station A",
             "est_principale": true,
             "coordonnees": {
-              "longitude": 48.8566,
+              "longitude": 38.8566,
               "latitude": 2.3522
             }
           },
@@ -114,48 +87,21 @@
             "nom": "Station D",
             "est_principale": true,
             "coordonnees": {
-              "longitude": 48.858,
+              "longitude": 78.858,
               "latitude": 2.355
             }
           },
           "troncons": [
             {
-              "numero": "T001",
-              "longueur_km": 5.0,
-              "duree_estimee": 15,
-              "station_depart": {
-                "code": "S001",
-                "nom": "Station A"
+              "numero": "T007",
+              "longueur_km": 10.0,
+              "station_debut": {
+                "code": "S013",
+                "nom": "Station M"
               },
-              "station_arrivee": {
-                "code": "S002",
-                "nom": "Station B"
-              }
-            },
-            {
-              "numero": "T002",
-              "longueur_km": 3.0,
-              "duree_estimee": 10,
-              "station_depart": {
-                "code": "S002",
-                "nom": "Station B"
-              },
-              "station_arrivee": {
-                "code": "S003",
-                "nom": "Station C"
-              }
-            },
-            {
-              "numero": "T003",
-              "longueur_km": 2.0,
-              "duree_estimee": 5,
-              "station_depart": {
-                "code": "S003",
-                "nom": "Station C"
-              },
-              "station_arrivee": {
-                "code": "S004",
-                "nom": "Station D"
+              "station_de_fin": {
+                "code": "S016",
+                "nom": "Station P"
               }
             }
           ]
@@ -166,7 +112,7 @@
   {
     "_id": "V0003",
     "duree": 20,
-    "date_voyage": "2025-01-03",
+    "date_voyage": { "$date": "2025-01-03T00:00:00Z" },
     "heure_depart": "06:30",
     "sens": "Aller",
     "nb_voyageurs": 150,
@@ -187,7 +133,7 @@
             "nom": "Station A",
             "est_principale": true,
             "coordonnees": {
-              "longitude": 48.8566,
+              "longitude": 38.8566,
               "latitude": 2.3522
             }
           },
@@ -196,7 +142,7 @@
             "nom": "Station D",
             "est_principale": true,
             "coordonnees": {
-              "longitude": 48.858,
+              "longitude": 78.858,
               "latitude": 2.355
             }
           },
@@ -204,38 +150,121 @@
             {
               "numero": "T001",
               "longueur_km": 5.0,
-              "duree_estimee": 15,
-              "station_depart": {
+              "station_debut": {
                 "code": "S001",
                 "nom": "Station A"
               },
-              "station_arrivee": {
+              "station_de_fin": {
                 "code": "S002",
                 "nom": "Station B"
               }
-            },
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "_id": "V0004",
+    "duree": 20,
+    "date_voyage": { "$date": "2025-01-06T00:00:00Z" },
+    "heure_depart": "07:30",
+    "sens": "Retour",
+    "nb_voyageurs": 140,
+    "observation": "On time",
+    "navette": {
+      "numero": "N002",
+      "marque": "Alstom",
+      "annee_mise_en_service": 2019,
+      "moyen_transport": {
+        "abreviation": "MET",
+        "heure_ouverture": "05:30",
+        "heure_fermeture": "23:30",
+        "nb_moyen_voyageurs": 300,
+        "ligne": {
+          "code": "M001",
+          "station_depart": {
+            "code": "S001",
+            "nom": "Station A",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 38.8566,
+              "latitude": 2.3522
+            }
+          },
+          "station_arrivee": {
+            "code": "S004",
+            "nom": "Station D",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 78.858,
+              "latitude": 2.355
+            }
+          },
+          "troncons": [
             {
-              "numero": "T002",
-              "longueur_km": 3.0,
-              "duree_estimee": 10,
-              "station_depart": {
+              "numero": "T001",
+              "longueur_km": 5.0,
+              "station_debut": {
+                "code": "S001",
+                "nom": "Station A"
+              },
+              "station_de_fin": {
                 "code": "S002",
                 "nom": "Station B"
-              },
-              "station_arrivee": {
-                "code": "S003",
-                "nom": "Station C"
               }
-            },
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "_id": "V0005",
+    "duree": 50,
+    "date_voyage": { "$date": "2025-01-08T00:00:00Z" },
+    "heure_depart": "08:30",
+    "sens": "Retour",
+    "nb_voyageurs": 140,
+    "observation": "panne",
+    "navette": {
+      "numero": "N003",
+      "marque": "CAF",
+      "annee_mise_en_service": 2021,
+      "moyen_transport": {
+        "abreviation": "TRM",
+        "heure_ouverture": "06:00",
+        "heure_fermeture": "23:00",
+        "nb_moyen_voyageurs": 500,
+        "ligne": {
+          "code": "TM001",
+          "station_depart": {
+            "code": "S003",
+            "nom": "Station C",
+            "est_principale": false,
+            "coordonnees": {
+              "longitude": 48.8575,
+              "latitude": 7.354
+            }
+          },
+          "station_arrivee": {
+            "code": "S006",
+            "nom": "Station F",
+            "est_principale": false,
+            "coordonnees": {
+              "longitude": 48.86,
+              "latitude": 3.357
+            }
+          },
+          "troncons": [
             {
               "numero": "T003",
-              "longueur_km": 2.0,
-              "duree_estimee": 5,
-              "station_depart": {
+              "longueur_km": 7.0,
+              "station_debut": {
                 "code": "S003",
                 "nom": "Station C"
               },
-              "station_arrivee": {
+              "station_de_fin": {
                 "code": "S004",
                 "nom": "Station D"
               }
@@ -246,9 +275,186 @@
     }
   },
   {
+    "_id": "V0006",
+    "duree": 50,
+    "date_voyage": { "$date": "2025-01-05T00:00:00Z" },
+    "heure_depart": "09:30",
+    "sens": "Aller",
+    "nb_voyageurs": 140,
+    "observation": "accident",
+    "navette": {
+      "numero": "N003",
+      "marque": "CAF",
+      "annee_mise_en_service": 2021,
+      "moyen_transport": {
+        "abreviation": "TRM",
+        "heure_ouverture": "06:00",
+        "heure_fermeture": "23:00",
+        "nb_moyen_voyageurs": 500,
+        "ligne": {
+          "code": "TM001",
+          "station_depart": {
+            "code": "S003",
+            "nom": "Station C",
+            "est_principale": false,
+            "coordonnees": {
+              "longitude": 48.8575,
+              "latitude": 7.354
+            }
+          },
+          "station_arrivee": {
+            "code": "S006",
+            "nom": "Station F",
+            "est_principale": false,
+            "coordonnees": {
+              "longitude": 48.86,
+              "latitude": 3.357
+            }
+          },
+          "troncons": [
+            {
+              "numero": "T003",
+              "longueur_km": 7.0,
+              "station_debut": {
+                "code": "S003",
+                "nom": "Station C"
+              },
+              "station_de_fin": {
+                "code": "S004",
+                "nom": "Station D"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "_id": "V0007",
+    "duree": 40,
+    "date_voyage": { "$date": "2025-01-07T00:00:00Z" },
+    "heure_depart": "10:30",
+    "sens": "Retour",
+    "nb_voyageurs": 140,
+    "observation": "retard",
+    "navette": {
+      "numero": "N004",
+      "marque": "Bombardier",
+      "annee_mise_en_service": 2022,
+      "moyen_transport": {
+        "abreviation": "TRN",
+        "heure_ouverture": "05:00",
+        "heure_fermeture": "23:59",
+        "nb_moyen_voyageurs": 400,
+        "ligne": {
+          "code": "TN002",
+          "station_depart": {
+            "code": "S005",
+            "nom": "Station E",
+            "est_principale": false,
+            "coordonnees": {
+              "longitude": 88.859,
+              "latitude": 2.356
+            }
+          },
+          "station_arrivee": {
+            "code": "S010",
+            "nom": "Station J",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 48.864,
+              "latitude": 5.361
+            }
+          },
+          "troncons": [
+            {
+              "numero": "T010",
+              "longueur_km": 8.0,
+              "station_debut": {
+                "code": "S016",
+                "nom": "Station P"
+              },
+              "station_de_fin": {
+                "code": "S010",
+                "nom": "Station J"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "_id": "V0008",
+    "duree": 40,
+    "date_voyage": { "$date": "2025-02-03T00:00:00Z" },
+    "heure_depart": "12:30",
+    "sens": "Retour",
+    "nb_voyageurs": 140,
+    "observation": "retard",
+    "navette": {
+      "numero": "N007",
+      "marque": "Hyundai Rotem",
+      "annee_mise_en_service": 2025,
+      "moyen_transport": {
+        "abreviation": "TRN",
+        "heure_ouverture": "05:00",
+        "heure_fermeture": "23:59",
+        "nb_moyen_voyageurs": 480,
+        "ligne": {
+          "code": "TN003",
+          "station_depart": {
+            "code": "S013",
+            "nom": "Station M",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 48.867,
+              "latitude": 2.364
+            }
+          },
+          "station_arrivee": {
+            "code": "S016",
+            "nom": "Station P",
+            "est_principale": true,
+            "coordonnees": {
+              "longitude": 48.87,
+              "latitude": 9.367
+            }
+          },
+          "troncons": [
+            {
+              "numero": "T006",
+              "longueur_km": 8.0,
+              "station_debut": {
+                "code": "S009",
+                "nom": "Station I"
+              },
+              "station_de_fin": {
+                "code": "S010",
+                "nom": "Station J"
+              }
+            },
+            {
+              "numero": "T014",
+              "longueur_km": 12.0,
+              "station_debut": {
+                "code": "S015",
+                "nom": "Station O"
+              },
+              "station_de_fin": {
+                "code": "S012",
+                "nom": "Station L"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
     "_id": "V0009",
     "duree": 120,
-    "date_voyage": "2025-01-01",
+    "date_voyage": { "$date": "2025-01-01T00:00:00Z" },
     "heure_depart": "05:00",
     "sens": "Aller",
     "nb_voyageurs": 30,
@@ -265,33 +471,32 @@
         "ligne": {
           "code": "M002",
           "station_depart": {
-            "code": "S001",
-            "nom": "Station A",
+            "code": "S007",
+            "nom": "Station G",
             "est_principale": true,
             "coordonnees": {
-              "longitude": 48.8566,
-              "latitude": 2.3522
+              "longitude": 48.861,
+              "latitude": 2.358
             }
           },
           "station_arrivee": {
-            "code": "S004",
-            "nom": "Station D",
+            "code": "S010",
+            "nom": "Station J",
             "est_principale": true,
             "coordonnees": {
-              "longitude": 48.858,
-              "latitude": 2.355
+              "longitude": 48.864,
+              "latitude": 5.361
             }
           },
           "troncons": [
             {
               "numero": "T001",
               "longueur_km": 5.0,
-              "duree_estimee": 15,
-              "station_depart": {
+              "station_debut": {
                 "code": "S001",
                 "nom": "Station A"
               },
-              "station_arrivee": {
+              "station_de_fin": {
                 "code": "S002",
                 "nom": "Station B"
               }
@@ -299,12 +504,11 @@
             {
               "numero": "T002",
               "longueur_km": 3.0,
-              "duree_estimee": 10,
-              "station_depart": {
+              "station_debut": {
                 "code": "S002",
                 "nom": "Station B"
               },
-              "station_arrivee": {
+              "station_de_fin": {
                 "code": "S003",
                 "nom": "Station C"
               }
@@ -313,15 +517,22 @@
               "numero": "T003",
               "longueur_km": 2.0,
               "duree_estimee": 5,
-              "station_depart": {
+              "station_debut": {
                 "code": "S003",
                 "nom": "Station C"
               },
-              "station_arrivee": {
+              "station_de_fin": {
                 "code": "S004",
                 "nom": "Station D"
               }
             }
+          ]
+        }
+      }
+    }
+  }
+]
+
           ]
         }
       }
