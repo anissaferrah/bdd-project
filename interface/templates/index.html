@@ -506,7 +506,7 @@
         </div>
 
         <div class="query-explorer">
-            <h2>Requêtes Spécifiques</h2>
+            <h2>Requêtes SQL 3</h2>
             <p>Sélectionnez une requête pour afficher les données correspondantes</p>
             
             <div class="queries">
@@ -515,10 +515,21 @@
                 <button class="query-btn" onclick="afficherReponse(9)">Navettes les plus actives (Janvier 2025)</button>
                 <button class="query-btn" onclick="afficherReponse(10)">Stations multi-transports</button>
             </div>
-            
             <div id="reponseContainer" class="query-result">
                 <p>Sélectionnez une requête pour voir les résultats ici</p>
             </div>
+              <h2>Requêtes MongoDB</h2>
+            <div class="queries">
+                <button class="query-btn" onclick="executer_requete_mongodb(1)">Mongo Q1 - Voyages le 01/01/2025</button>
+                <button class="query-btn" onclick="executer_requete_mongodb(2)">Mongo Q2 - Observation 'On time'</button>
+                <button class="query-btn" onclick="executer_requete_mongodb(3)">Mongo Q3 - Total par ligne</button>
+                <button class="query-btn" onclick="executer_requete_mongodb(4)">Mongo Q4 - +100 voyageurs MET</button>
+                <button class="query-btn" onclick="executer_requete_mongodb(5)">Mongo Q5 - MapReduce lignes</button>
+                <button class="query-btn" onclick="executer_requete_mongodb(6)">Mongo Q6 - Navette la plus utilisée</button>
+            </div>
+            <div id="reponseMongoContainer" class="query-result">
+              <p>Sélectionnez une requête MongoDB pour voir les résultats ici.</p>
+             </div>
         </div>
 
         <div class="query-explorer">
@@ -596,5 +607,22 @@
             });
     }
     </script>
+    <script>
+    function executer_requete_mongodb(numero) {
+        fetch(`/reponse_mongo/${numero}`)
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('reponseMongoContainer').innerHTML = data;
+
+                // Scroll automatique vers le conteneur de résultat Mongo
+                const container = document.getElementById('reponseMongoContainer');
+                container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            })
+            .catch(error => {
+                document.getElementById('reponseMongoContainer').innerHTML = "<p>Erreur lors de l'exécution de la requête MongoDB.</p>";
+                console.error(error);
+            });
+        }
+</script>
 </body>
 </html>
