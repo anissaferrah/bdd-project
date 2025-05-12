@@ -1,5 +1,6 @@
+
 Requete 1:
-db.Voyage.find({"date voyage": "2025-01-01"}).pretty()
+db.Voyage.find({date_voyage: ISODate("2025-01-01T00:00:00Z")}).pretty()
 
 Requete 2:
 db.Voyage.aggregate([{$match:{"observation":"On time"}},
@@ -39,8 +40,16 @@ db.Voyage.aggregate([
 db["Ligne-Voyages"].find().pretty()
 
 
-#Requete4(pas encore)
-
+#Requete4
+db.Voyage.updateMany(
+  {
+    "navette.moyen_transport.abreviation": "MET",
+    date_voyage: { $lt: ISODate("2025-01-15T00:00:00Z") }
+  },
+  {
+    $inc: { nb_voyageurs: 100 }
+  }
+)
 
 
 #Requete 5:
@@ -58,7 +67,22 @@ db.Voyage.mapReduce(
   {
     out: "Ligne-Voyages"
   }
-);
+)
 
 #Affichage:
-db["Ligne-Voyages"].find().sort({ value: -1 }).pretty();
+db["Ligne-Voyages"].find().sort({ value: -1 }).pretty()
+
+#Requete 6:
+db.Voyage.aggregate([
+  {
+    $group: {
+      _id: {
+        numeroNavette: "$navette.numero",
+        abreviation: "$navette.moyen_transport.abreviation"
+      },
+      totalVoyages: { $sum: 1 }
+    }
+  },
+  { $sort: { totalVoyages: -1 } },
+  { $limit: 1 } 
+])
