@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <title>Smart City - Gestion du Réseau de Transport</title>
+    <style>
+        :root {
+            --primary: #2979ff;
+            --secondary: #ff5722;
+            --light-bg: #f5f7fa;
+            --dark-bg: #263238;
+            --text: #333;
+            --light-text: #fff;
+            --success: #4caf50;
+            --warning: #ff9800;
+            --danger: #f44336;
+            --metro: #2979ff;
+            --bus: #43a047;
+            --tram: #ff5722;
+            --train: #9c27b0;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color:whitesmoke;
+            color: var(--text);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 15px;
+        }
+        
+        /* Header */
+        header {
+            background-color:  whitesmoke;
+            box-shadow: 0 2px 10px rgb(255, 255, 255);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+        }
+        
+        .logo h1 {
+            color: rgba(10, 73, 64, 0.8);
+            font-size: 24px;
+            margin-left: 10px;
+        }
+        
+        .nav-links {
+            display: flex;
+            list-style: none;
+        }
+        
+        .nav-links li {
+            margin-left: 20px;
+        }
+        
+        .nav-links a {
+            color: var(--dark-bg);
+            text-decoration: none;
+            font-weight: 500;
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-links a:hover, .nav-links a.active {
+            background-color: rgba(10, 73, 64, 0.8);
+            color: var(--light-text);
+        }
+        .hero {
+            display: flex; /* Utilisation de flexbox pour aligner les éléments horizontalement */
+            justify-content: space-between; /* Espacement égal entre le titre et l'image */
+            align-items: center; /* Centrer verticalement les éléments */
+            background-image: linear-gradient(to right, rgba(146, 156, 152, 0.8), rgba(10, 73, 64, 0.8));
+            background-size: cover;
+            background-position: center;
+            color: rgb(19, 73, 98);
+            padding: 0px 0;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        /* Contenu du titre */
+        .hero-content {
+            flex: 1; /* Prend tout l'espace restant à gauche */
+            max-width: 600px; /* Limiter la largeur du texte */
+            padding-left: 20px; /* Un peu d'espace à gauche du titre */
+            z-index: 2;
+        }
+
+        .hero h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        .hero p {
+            font-size: 1.1rem;
+            margin-bottom: 25px;
+        }
+
+        /* Image principale */
+        .hero-image {
+            flex: 1; /* Prend tout l'espace restant à droite */
+            text-align: right; /* Aligner l'image à droite */
+        }
+
+        .hero-image img.main-image {
+            width: 100%; /* L'image s'adapte à la largeur de l'espace disponible */
+            max-width: 700px; /* Contrôle la taille maximale de l'image */
+            padding-right: 50px; /* Un peu d'espace à gauche de l'image */
+            height: auto;
+            object-fit: cover; /* L'image couvre la zone sans déformation */
+        }
+
+        /* Titre avec image - Utilisé pour d'autres sections si besoin */
+        .titre-ligne {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 40px 0;
+            justify-content: flex-start; /* Alignement des éléments */
+        }
+
+        .titre-ligne-image {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
+        }
+
+        .titre-ligne-texte {
+            font-size: 2rem;
+            color: var(--text);
+        }
+
+        /* Transport Cards */
+        .transport-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background:  hsla(157, 29%, 43%, 0.8);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+            text-align: center;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px black;
+        }
+        
+        .card-icon {
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            border-radius: 50%;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .metro .card-icon { background-color: var(--metro); }
+        .bus .card-icon { background-color: var(--bus); }
+        .tram .card-icon { background-color: var(--tram); }
+        .train .card-icon { background-color: var(--train); }
+        .ligne .card-icon { background-color: var(--secondary); }
+        .station .card-icon { background-color: var(--primary); }
+        .navette .card-icon { background-color: #ff9800; }
+        .voyage .card-icon { background-color: #795548; }
+        .troncon .card-icon { background-color: #607d8b; }
+        
+        .card h3 {
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+        
+        .card p {
+            color: #ffffff;
+            font-size: 0.9rem;
+        }
+        
+        .card-data {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            margin: 10px 0;
+        }
+        .card-hours {
+            font-size: 0.85rem; /* Slightly smaller font size */
+            color: #555; /* Darker gray for contrast */
+            margin-top: 10px; /* Space above the hours */
+            font-weight: 500; /* Medium weight for readability */
+        }
+                /* Query Explorer */
+        .query-explorer {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        
+        .query-explorer h2 {
+            margin-bottom: 15px;
+            color: var(--dark-bg);
+        }
+        
+        .queries {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .query-btn {
+            background: rgba(10, 73, 64, 0.8);
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+        
+        .query-btn:hover {
+            background: var(rgba(10, 73, 64, 0.8));
+            color: white;
+        }
+        
+        .query-result {
+            background: #e9e9e9;
+            border-radius: 8px;
+            padding: 15px;
+            overflow: auto;
+            min-height: 200px;
+            max-height: 400px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+            font-weight: 600;
+        }
+        
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        /* Advanced Functions */
+        .advanced-functions {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .function-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .function-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+        }
+        
+        .function-card h3 {
+            color: var(--primary);
+            margin-bottom: 10px;
+        }
+        
+        /* Footer */
+        footer {
+            background-color: hsla(157, 46%, 23%, 0.8);
+            color: var(--light-text);
+            padding: 30px 0;
+            margin-top: 50px;
+        }
+        
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        
+        .footer-section {
+            flex: 1;
+            min-width: 200px;
+            margin-bottom: 20px;
+        }
+        
+        .footer-section h3 {
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .footer-section ul {
+            list-style: none;
+        }
+        
+        .footer-section li {
+            margin-bottom: 8px;
+        }
+        
+        .footer-section a {
+            color: #aaa;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+        
+        .footer-section a:hover {
+            color: var(--light-text);
+        }
+        
+        .copyright {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #495057;
+            margin-top: 20px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+            }
+            
+            .nav-links {
+                margin-top: 15px;
+            }
+            
+            .queries {
+                grid-template-columns: 1fr;
+            }
+            
+            .transport-cards {
+                grid-template-columns: 1fr;
+            }
+            
+            .advanced-functions {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav class="navbar">
+                <a href="#" class="logo">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="#0a4940"/>
+                    </svg>
+                    <h1>Smart City</h1>
+                </a>
+                <ul class="nav-links">
+                    <li><a href="#" class="active">Tableau de bord</a></li>
+                    <li><a href="#transports" >Transports</a></li>
+                    <li><a href="#lignes" >Lignes</a></li>
+                    <li><a href="#stations " >Stations</a></li>
+                    <li><a href="#voyages" >Voyages</a></li>
+                    <li><a href="#statistics" >Statistiques</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+
+    <section class="hero">
+  <div class="hero-content">
+    <h2>Gestion du Réseau de Transport Urbain</h2>
+  </div>
+  <div class="hero-image">
+    <img src="{{ url_for('static', filename='images/moyt.png') }}" alt="Transport" class="main-image">
+   <p style="padding-right: 65px;">Plateforme intelligente pour surveiller et optimiser le réseau de transport public en temps réel.</p>
+    </div>
+</section>
+
+
+
+
+    <div class="container">
+        <div id="transports">
+            <h2>Moyens de Transport</h2>
+            <div class="transport-cards">
+                <div class="card metro" onclick="afficherReponse(1)">
+                    <div class="card-icon"><i class="fas fa-subway card-icon"></i> <!-- Metro icon --></div>
+                    <h3>Métro</h3>
+                    <p>Réseau de métro urbain</p>
+                    <div class="card-data">245,000</div>
+                    <p class="card-hours"><i class="fas fa-clock"></i>Horaires: 05:30–23:30</p> <!-- Added hours -->
+                    <p>voyageurs/jour</p>
+                </div>
+                
+                <div class="card bus" onclick="afficherReponse(1)">
+                    <div class="card-icon"><i class="fas fa-bus card-icon"></i> <!-- Bus icon --></div>
+                    <h3>Bus</h3>
+                    <p>Réseau de bus urbain</p>
+                    <div class="card-data">180,000</div>
+                    <p class="card-hours"><i class="fas fa-clock"></i>Horaires: 05:30–23:30</p>
+                    <p>voyageurs/jour</p>
+                </div>
+                
+                <div class="card tram" onclick="afficherReponse(1)">
+                    <div class="card-icon"><i class="fas fa-tram card-icon"></i> <!-- Tram icon --></div>
+                    <h3>Tramway</h3>
+                    <p>Réseau de tramway</p>
+                    <div class="card-data">160,000</div>
+                    <p class="card-hours"><i class="fas fa-clock"></i>Horaires: 06:00–23:00</p>
+                    <p>voyageurs/jour</p>
+                </div>
+                
+                <div class="card train" onclick="afficherReponse(1)">
+                    <div class="card-icon"><i class="fas fa-train card-icon"></i> <!-- Train icon --></div>
+                    <h3>Train</h3>
+                    <p>Réseau ferroviaire</p>
+                    <div class="card-data">120,000</div>
+                    <p class="card-hours"><i class="fas fa-clock"></i>Horaires: 05:00–23:59</p>
+                    <p>voyageurs/jour</p>
+                </div>
+            </div>
+        </div>
+        
+        <div id="components">
+            <h2>Composants du Réseau</h2>
+            <div class="transport-cards">
+                <div class="card ligne" onclick="afficherReponse(3)">
+                    <div class="card-icon"><i class="fas fa-route card-icon"></i> <!-- Line icon --></div>
+                    <h3>Lignes</h3>
+                    <p>Toutes les lignes du réseau</p>
+                </div>
+                
+                <div class="card station" onclick="afficherReponse(2)">
+                    <div class="card-icon"><i class="fas fa-map-marker-alt card-icon"></i> <!-- Station icon --></div>
+                    <h3>Stations</h3>
+                    <p>Points d'arrêt du réseau</p>
+                </div>
+                
+                <div class="card navette" onclick="afficherReponse(5)">
+                    <div class="card-icon"><i class="fas fa-shuttle-van card-icon"></i> <!-- Shuttle icon --></div>
+                    <h3>Navettes</h3>
+                    <p>Véhicules de transport</p>
+                </div>
+                
+                <div class="card voyage" onclick="afficherReponse(6)">
+                    <div class="card-icon"><i class="fas fa-ticket-alt card-icon"></i> <!-- Trip icon --></div>
+                    <h3>Voyages</h3>
+                    <p>Trajets programmés</p>
+                </div>
+                
+                <div class="card troncon" onclick="afficherReponse(4)">
+                    <div class="card-icon"><i class="fas fa-road card-icon"></i> <!-- Segment icon --></div>
+                    <h3>Tronçons</h3>
+                    <p>Segments du réseau</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="query-explorer">
+            <h2>Requêtes Spécifiques</h2>
+            <p>Sélectionnez une requête pour afficher les données correspondantes</p>
+            
+            <div class="queries">
+                <button class="query-btn" onclick="afficherReponse(7)">Voyages avec problèmes</button>
+                <button class="query-btn" onclick="afficherReponse(8)">Lignes avec stations principales</button>
+                <button class="query-btn" onclick="afficherReponse(9)">Navettes les plus actives (Janvier 2025)</button>
+                <button class="query-btn" onclick="afficherReponse(10)">Stations multi-transports</button>
+            </div>
+            
+            <div id="reponseContainer" class="query-result">
+                <p>Sélectionnez une requête pour voir les résultats ici</p>
+            </div>
+        </div>
+
+        <div class="query-explorer">
+            <h2>Méthodes Avancées</h2>
+            <p>Fonctions spéciales pour l'analyse du réseau</p>
+            
+            <div class="queries">
+                <button class="query-btn" onclick="afficherReponse(11)">Calculer la durée d'un tronçon</button>
+                <button class="query-btn" onclick="afficherReponse(12)">Calculer le nombre de voyages par navette</button>
+                <button class="query-btn" onclick="afficherReponse(13)">Lister les navettes par ligne</button>
+                <button class="query-btn" onclick="afficherReponse(14)">Nombre de voyages dans une periode</button>
+                 <button class="query-btn" onclick="afficherReponse(15)">Nombre de Voyages et Voyageurs</button>
+            </div>
+            
+            <div id="reponseMethodesContainer" class="query-result">
+                <p>Sélectionnez une méthode pour voir les résultats ici</p>
+            </div>
+        </div>
+            
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>Smart City</h3>
+                    <p>Plateforme de gestion des transports urbains</p>
+                </div>
+                
+                <div class="footer-section">
+                    <h3>Navigation</h3>
+                    <ul>
+                        <li><a href="#">Accueil</a></li>
+                        <li><a href="#transports">Transports</a></li>
+                        <li><a href="#lignes">Lignes</a></li>
+                        <li><a href="#stations">Stations</a></li>
+                        <li><a href="#statistics">Statistiques</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-section">
+                    <h3>Ressources</h3>
+                    <ul>
+                        <li><a href="#">API Documentation</a></li>
+                        <li><a href="#">Données ouvertes</a></li>
+                        <li><a href="#">Horaires</a></li>
+                        <li><a href="#">Assistance</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="copyright">
+                &copy; 2025 Smart City - Projet BDD
+            </div>
+        </div>
+    </footer>
+
+    <script>
+    function afficherReponse(numQuestion) {
+        fetch(`/reponse/${numQuestion}`)
+            .then(response => response.text())
+            .then(data => {
+                if (numQuestion >= 11 && numQuestion <= 15) {
+                    document.getElementById('reponseMethodesContainer').innerHTML = data;
+                } else {
+                    document.getElementById('reponseContainer').innerHTML = data;
+                }
+                
+                // Faire défiler jusqu'au conteneur de réponse
+                const targetContainer = (numQuestion >= 11 && numQuestion <= 15) ? 
+                    document.getElementById('reponseMethodesContainer') : 
+                    document.getElementById('reponseContainer');
+                targetContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+    }
+    </script>
+</body>
+</html>
